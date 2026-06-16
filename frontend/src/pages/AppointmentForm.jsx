@@ -32,7 +32,10 @@ export default function AppointmentForm() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [babiesData, vaccinesData] = await Promise.all([fetchBabies(), fetchVaccines()]);
+        const [babiesData, vaccinesData] = await Promise.all([
+          fetchBabies(),
+          fetchVaccines({ page_size: 1000 }),
+        ]);
         setBabies(babiesData);
         setVaccines(vaccinesData);
       } catch (err) {

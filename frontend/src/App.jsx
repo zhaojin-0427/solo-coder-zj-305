@@ -9,12 +9,14 @@ import AppointmentForm from './pages/AppointmentForm'
 import ReactionList from './pages/ReactionList'
 import ReactionForm from './pages/ReactionForm'
 import Statistics from './pages/Statistics'
+import Family from './pages/Family'
 
 const navItems = [
   { path: '/babies', label: '宝宝档案', icon: '👶' },
   { path: '/calendar', label: '接种日历', icon: '📅' },
   { path: '/appointments', label: '预约记录', icon: '📋' },
   { path: '/reactions', label: '反应观察', icon: '💊' },
+  { path: '/family', label: '家庭共享', icon: '👨‍👩‍👧‍👦' },
   { path: '/statistics', label: '数据统计', icon: '📊' },
 ]
 
@@ -55,6 +57,7 @@ export default function App() {
           <Route path="/appointments/new" element={<AppointmentForm />} />
           <Route path="/reactions" element={<ReactionList />} />
           <Route path="/reactions/new" element={<ReactionForm />} />
+          <Route path="/family" element={<Family />} />
           <Route path="/statistics" element={<Statistics />} />
         </Routes>
       </main>

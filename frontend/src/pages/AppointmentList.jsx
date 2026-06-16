@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchAppointments, updateAppointment } from '../api';
+import { fetchAppointments, updateAppointment, markAppointmentReminded, unmarkAppointmentReminded } from '../api';
 
 const TIME_SLOT_MAP = {
   morning_1: '上午 08:00-09:00',
@@ -35,7 +35,7 @@ export default function AppointmentList() {
 
   const loadAppointments = async () => {
     try {
-      const params = {};
+      const params = { page_size: 1000 };
       if (statusFilter !== 'all') params.status = statusFilter;
       if (typeFilter !== 'all') params.appointment_type = typeFilter;
       const data = await fetchAppointments(params);
@@ -60,6 +60,17 @@ export default function AppointmentList() {
       );
     } catch (err) {
       console.error('Failed to update appointment status:', err);
+    }
+  };
+
+  const handleToggleRemind = async (id, isReminded) => {
+    try {
+      const res = isReminded
+        ? await unmarkAppointmentReminded(id)
+        : await markAppointmentReminded(id);
+      setAppointments(prev => prev.map(apt => apt.id === id ? res : apt));
+    } catch (err) {
+      console.error('Failed to update remind status:', err);
     }
   };
 
@@ -134,18 +145,36 @@ export default function AppointmentList() {
                     <span className="card-label">预约医院</span>
                     <span className="card-value">{apt.hospital}</span>
                   </div>
+                  {apt.reminded_at && apt.reminded_by_name && (
+                    <div className="card-row">
+                      <span className="card-label">提醒状态</span>
+                      <span className="card-value text-success">
+                        ✅ 已由 {apt.reminded_by_name} 提醒 ({apt.reminded_at.split('T')[0]})
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="card-actions">
                   {apt.status === 'pending' && (
                     <>
                       <button className="btn btn-sm btn-blue" onClick={() => handleStatusChange(apt.id, 'confirmed')}>确认</button>
                       <button className="btn btn-sm btn-gray" onClick={() => handleStatusChange(apt.id, 'cancelled')}>取消</button>
+                      {apt.reminded_at ? (
+                        <button className="btn btn-sm btn-secondary" onClick={() => handleToggleRemind(apt.id, true)}>取消提醒</button>
+                      ) : (
+                        <button className="btn btn-sm btn-green" onClick={() => handleToggleRemind(apt.id, false)}>✓ 标记已提醒</button>
+                      )}
                     </>
                   )}
                   {apt.status === 'confirmed' && (
                     <>
                       <button className="btn btn-sm btn-green" onClick={() => handleStatusChange(apt.id, 'completed')}>完成</button>
                       <button className="btn btn-sm btn-gray" onClick={() => handleStatusChange(apt.id, 'cancelled')}>取消</button>
+                      {apt.reminded_at ? (
+                        <button className="btn btn-sm btn-secondary" onClick={() => handleToggleRemind(apt.id, true)}>取消提醒</button>
+                      ) : (
+                        <button className="btn btn-sm btn-green" onClick={() => handleToggleRemind(apt.id, false)}>✓ 标记已提醒</button>
+                      )}
                     </>
                   )}
                 </div>

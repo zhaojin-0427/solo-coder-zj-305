@@ -23,6 +23,11 @@ class ProfileSerializer(serializers.ModelSerializer):
 
 
 class FamilyMemberSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+    relation_with_baby = serializers.CharField(source='user.profile.relation_with_baby', read_only=True)
+    relation_label = serializers.CharField(source='user.profile.get_relation_with_baby_display', read_only=True)
+
     class Meta:
         model = FamilyMember
         fields = '__all__'

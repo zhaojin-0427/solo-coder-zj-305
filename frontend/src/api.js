@@ -41,6 +41,14 @@ export const createReaction = (data) => api.post('reactions/', data)
 export const updateReaction = (id, data) => api.patch(`reactions/${id}/`, data)
 export const deleteReaction = (id) => api.delete(`reactions/${id}/`)
 
+export const fetchFamilies = (params) => api.get('accounts/families/', { params })
+export const fetchFamilyMembers = (params) => api.get('accounts/family-members/', { params })
+export const createFamily = (data) => api.post('accounts/families/', data)
+export const addFamilyMember = (data) => api.post('accounts/family-members/', data)
+export const removeFamilyMember = (id) => api.delete(`accounts/family-members/${id}/`)
+export const markAppointmentReminded = (id) => api.post(`appointments/${id}/mark_reminded/`)
+export const unmarkAppointmentReminded = (id) => api.post(`appointments/${id}/unmark_reminded/`)
+
 export const fetchStats = (babyId) => {
   const params = babyId ? { baby_id: babyId } : {}
   return api.get('stats/', { params })

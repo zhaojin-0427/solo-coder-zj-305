@@ -70,6 +70,11 @@ export default function Statistics() {
   const sortedDelays = [...delayedDetails].sort((a, b) => b.delay_days - a.delay_days)
   const totalDelayed = delayCount?.delay_count || 0
 
+  const vaccinationRateWithPercent = vaccinationRate.map(item => ({
+    ...item,
+    rate_percent: Math.round((item.rate || 0) * 100),
+  }))
+
   const monthlyProgressWithRates = monthlyProgress.map(item => ({
     ...item,
     vaccine_rate: item.total_vaccines > 0 ? Math.round((item.completed_vaccines / item.total_vaccines) * 100) : 0,
@@ -129,18 +134,26 @@ export default function Statistics() {
         </div>
       )}
 
-      {vaccinationRate.length > 0 && (
+      {vaccinationRateWithPercent.length > 0 && (
         <div className="card">
           <div className="card-title">各阶段接种完成率</div>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={vaccinationRate}>
+            <BarChart data={vaccinationRateWithPercent}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="stage_name" />
-              <YAxis unit="%" />
-              <Tooltip formatter={value => `${value}%`} />
+              <YAxis unit="%" domain={[0, 100]} />
+              <Tooltip
+                formatter={(value, name) => {
+                  if (name === '完成率') return [`${value}%`, '完成率']
+                  return [value, name]
+                }}
+                labelFormatter={(label) => {
+                  const item = vaccinationRateWithPercent.find(d => d.stage_name === label)
+                  return item ? `${label}  已完成: ${item.completed}/${item.total}` : label
+                }}
+              />
               <Legend />
-              <Bar dataKey="total" fill="#DFE6E9" name="总数" />
-              <Bar dataKey="completed" fill="#00B894" name="已完成" />
+              <Bar dataKey="rate_percent" fill="#6C5CE7" name="完成率" />
             </BarChart>
           </ResponsiveContainer>
         </div>
