@@ -69,5 +69,30 @@ export const fetchMonthlyProgress = (babyId) => {
   const params = babyId ? { baby_id: babyId } : {}
   return api.get('stats/monthly-progress/', { params })
 }
+export const fetchTaskFlow = (babyId, month) => {
+  const params = {}
+  if (month !== undefined && month !== null) params.month = month
+  return api.get(`babies/${babyId}/task_flow/`, { params })
+}
+export const fetchSmartRecommend = (babyId, appointmentType) => {
+  const params = { baby_id: babyId }
+  if (appointmentType) params.appointment_type = appointmentType
+  return api.get('appointments/smart_recommend/', { params })
+}
+export const createAppointmentWithForce = (data, force = false) => {
+  return api.post('appointments/', { ...data, force })
+}
+export const fetchCollaborationStats = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/collaboration/', { params })
+}
+export const fetchFamilyReminderStats = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/family-reminders/', { params })
+}
 
 export default api

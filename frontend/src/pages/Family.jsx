@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { fetchFamilies, fetchFamilyMembers, fetchAppointments, markAppointmentReminded, unmarkAppointmentReminded } from '../api'
+import { fetchFamilies, fetchFamilyMembers, fetchAppointments, markAppointmentReminded, unmarkAppointmentReminded, fetchFamilyReminderStats } from '../api'
 
 const RELATION_LABELS = {
   mother: '妈妈',
@@ -34,9 +34,13 @@ export default function Family() {
   const [families, setFamilies] = useState([])
   const [members, setMembers] = useState([])
   const [appointments, setAppointments] = useState([])
+  const [familyReminderStats, setFamilyReminderStats] = useState([])
+  const [selectedFamily, setSelectedFamily] = useState('')
   const [activeTab, setActiveTab] = useState('members')
   const [loading, setLoading] = useState(true)
+  const [statsLoading, setStatsLoading] = useState(false)
   const [updating, setUpdating] = useState(null)
+  const [expandedMember, setExpandedMember] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -48,10 +52,33 @@ export default function Family() {
         setFamilies(familiesData)
         setMembers(membersData)
         setAppointments(appointmentsData)
+        if (familiesData.length > 0) {
+          setSelectedFamily(String(familiesData[0].id))
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (selectedFamily) {
+      loadFamilyReminderStats()
+    }
+  }, [selectedFamily])
+
+  const loadFamilyReminderStats = async () => {
+    if (!selectedFamily) return
+    setStatsLoading(true)
+    try {
+      const data = await fetchFamilyReminderStats(null, selectedFamily)
+      setFamilyReminderStats(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Failed to load family reminder stats:', err)
+      setFamilyReminderStats([])
+    } finally {
+      setStatsLoading(false)
+    }
+  }
 
   const handleToggleRemind = async (appointmentId, isReminded) => {
     setUpdating(appointmentId)
@@ -60,6 +87,7 @@ export default function Family() {
         ? await unmarkAppointmentReminded(appointmentId)
         : await markAppointmentReminded(appointmentId)
       setAppointments(prev => prev.map(a => a.id === appointmentId ? res : a))
+      loadFamilyReminderStats()
     } catch (err) {
       console.error('Failed to update remind status:', err)
     } finally {
@@ -67,29 +95,194 @@ export default function Family() {
     }
   }
 
+  const toggleMemberExpand = (memberId) => {
+    setExpandedMember(expandedMember === memberId ? null : memberId)
+  }
+
+  const handleRefreshStats = () => {
+    loadFamilyReminderStats()
+  }
+
   if (loading) return <div className="loading">加载中...</div>
 
   const pendingAppointments = appointments.filter(a => a.status === 'pending')
+
+  const currentFamilyStats = familyReminderStats.find(f => String(f.family_id) === selectedFamily)
+
+  const getProgressColor = (rate) => {
+    if (rate >= 0.8) return 'green'
+    if (rate >= 0.5) return 'yellow'
+    return 'red'
+  }
+
+  const renderFamilySelector = () => {
+    if (families.length <= 1) return null
+    return (
+      <div className="filter-bar" style={{ marginBottom: 20 }}>
+        <div className="filter-group">
+          <label>选择家庭:</label>
+          <select value={selectedFamily} onChange={e => setSelectedFamily(e.target.value)}>
+            {families.map(f => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        </div>
+        <button className="btn btn-sm btn-secondary" onClick={handleRefreshStats}>
+          🔄 刷新
+        </button>
+      </div>
+    )
+  }
+
+  const renderReminderStats = () => {
+    if (!currentFamilyStats) {
+      if (statsLoading) return <div className="loading">加载提醒统计中...</div>
+      return null
+    }
+
+    const { total_members, reminded_members_count, not_reminded_members_count, coverage_rate, members } = currentFamilyStats
+
+    return (
+      <div className="card" style={{ marginBottom: 20, background: 'linear-gradient(135deg, #F0FDF4 0%, #D1FAE5 100%)' }}>
+        <div className="card-title" style={{ color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 20 }}>👨‍👩‍👧</span>
+            家庭提醒协同统计
+          </div>
+          <span className="badge badge-success">
+            覆盖率 {(coverage_rate * 100).toFixed(0)}%
+          </span>
+        </div>
+        <div className="card-body">
+          <div className="grid-4" style={{ marginBottom: 20 }}>
+            <div className="metric-card green">
+              <div className="metric-value">{total_members}</div>
+              <div className="metric-label">家庭成员总数</div>
+            </div>
+            <div className="metric-card">
+              <div className="metric-value">{reminded_members_count}</div>
+              <div className="metric-label">已参与提醒</div>
+            </div>
+            <div className="metric-card yellow">
+              <div className="metric-value">{not_reminded_members_count}</div>
+              <div className="metric-label">尚未跟进</div>
+            </div>
+            <div className="metric-card green">
+              <div className="metric-value">{(coverage_rate * 100).toFixed(0)}%</div>
+              <div className="metric-label">提醒参与率</div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13 }}>
+              <span style={{ color: '#636E72' }}>提醒参与进度</span>
+              <span style={{ fontWeight: 600 }}>{reminded_members_count}/{total_members} 人</span>
+            </div>
+            <div className="progress-bar-container">
+              <div 
+                className={`progress-bar-fill ${getProgressColor(coverage_rate)}`}
+                style={{ width: `${coverage_rate * 100}%` }}
+              />
+            </div>
+          </div>
+
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, marginTop: 20 }}>
+            👥 成员提醒详情 (点击展开查看历史)
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {members && members.map(member => {
+              const isExpanded = expandedMember === member.member_id
+              const hasReminded = member.reminded_count > 0
+              return (
+                <div 
+                  key={member.member_id} 
+                  className="family-member-reminder-item"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => toggleMemberExpand(member.member_id)}
+                >
+                  <div className="family-member-reminder-info">
+                    <div className="family-member-reminder-avatar">
+                      {member.username?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {member.username || '未知用户'}
+                        <span className={`reminder-status-badge ${hasReminded ? 'active' : 'inactive'}`}>
+                          {hasReminded ? '✓ 已参与提醒' : '○ 尚未跟进'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#636E72', marginTop: 2 }}>
+                        {member.role_label}
+                        {member.relation_label && ` · ${member.relation_label}`}
+                        {hasReminded && ` · 已提醒 ${member.reminded_count} 次`}
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 20, color: '#636E72' }}>
+                    {isExpanded ? '▲' : '▼'}
+                  </span>
+                </div>
+              )
+            })}
+            {members && members.map(member => {
+              const isExpanded = expandedMember === member.member_id
+              const hasReminded = member.reminded_count > 0
+              if (!isExpanded) return null
+              return (
+                <div key={`history-${member.member_id}`} style={{ paddingLeft: 52, paddingRight: 16, marginBottom: 12 }}>
+                  {hasReminded && member.recent_reminders && member.recent_reminders.length > 0 ? (
+                    <div className="reminder-history-list">
+                      <div style={{ fontSize: 12, color: '#636E72', marginBottom: 8, fontWeight: 500 }}>
+                        📋 最近提醒记录:
+                      </div>
+                      {member.recent_reminders.map((reminder, idx) => (
+                        <div key={idx} className="reminder-history-item">
+                          <span style={{ marginRight: 8 }}>•</span>
+                          <strong>{reminder.baby_name}</strong>
+                          <span style={{ margin: '0 6px' }}>-</span>
+                          <span>{reminder.type === 'vaccine' ? '疫苗' : '体检'}</span>
+                          <span style={{ margin: '0 6px' }}>|</span>
+                          <span>{reminder.date}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="not-reminded-hint">
+                      该成员尚未参与任何预约提醒
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="page-container">
       <div className="page-header">
         <h1>家庭共享</h1>
-        <p>家庭成员共享提醒状态，避免重复预约或漏约</p>
+        <p>家庭成员共享提醒状态，明确谁已处理、谁未跟进，避免重复预约或漏约</p>
       </div>
+
+      {renderFamilySelector()}
+
+      {activeTab === 'members' && renderReminderStats()}
 
       <div className="tabs">
         <button
           className={`tab ${activeTab === 'members' ? 'active' : ''}`}
           onClick={() => setActiveTab('members')}
         >
-          家庭成员
+          👥 成员与提醒统计
         </button>
         <button
           className={`tab ${activeTab === 'reminders' ? 'active' : ''}`}
           onClick={() => setActiveTab('reminders')}
         >
-          待提醒预约 ({pendingAppointments.length})
+          🔔 待提醒预约 ({pendingAppointments.length})
         </button>
       </div>
 
@@ -101,8 +294,8 @@ export default function Family() {
               <p>暂无家庭信息</p>
             </div>
           ) : (
-            families.map(family => (
-              <div key={family.id} className="card" style={{ marginBottom: 20 }}>
+            families.filter(f => String(f.id) === selectedFamily).map(family => (
+              <div key={family.id} className="card">
                 <div className="card-title">
                   🏠 {family.name}
                   {family.address && <span className="text-muted" style={{ fontSize: 14, marginLeft: 10 }}>{family.address}</span>}
