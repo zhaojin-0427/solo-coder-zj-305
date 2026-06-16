@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { fetchFamilies, fetchFamilyMembers, fetchAppointments, markAppointmentReminded, unmarkAppointmentReminded, fetchFamilyReminderStats } from '../api'
+import { fetchFamilies, fetchFamilyMembers, fetchAppointments, markAppointmentReminded, unmarkAppointmentReminded, fetchFamilyReminderStats, fetchChecklistSummary } from '../api'
 
 const RELATION_LABELS = {
   mother: '妈妈',
@@ -42,6 +42,7 @@ export default function Family() {
   const [updating, setUpdating] = useState(null)
   const [expandedMember, setExpandedMember] = useState(null)
   const [currentUser, setCurrentUser] = useState('1')
+  const [prepSummary, setPrepSummary] = useState(null)
 
   useEffect(() => {
     Promise.all([
@@ -64,8 +65,19 @@ export default function Family() {
   useEffect(() => {
     if (selectedFamily) {
       loadFamilyReminderStats()
+      loadPrepSummary()
     }
   }, [selectedFamily])
+
+  const loadPrepSummary = async () => {
+    if (!selectedFamily) return
+    try {
+      const data = await fetchChecklistSummary(null, selectedFamily)
+      setPrepSummary(data)
+    } catch (err) {
+      console.error('Failed to load prep summary:', err)
+    }
+  }
 
   const loadFamilyReminderStats = async () => {
     if (!selectedFamily) return
@@ -279,6 +291,44 @@ export default function Family() {
       {renderFamilySelector()}
 
       {activeTab === 'members' && renderReminderStats()}
+
+      {prepSummary && prepSummary.total_checklists > 0 && (
+        <div className="card" style={{ marginBottom: 20, background: 'linear-gradient(135deg, #EDEFFC 0%, #F8F9FD 100%)' }}>
+          <div className="card-title" style={{ color: '#6C5CE7', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>🏥</span>
+              到院准备核验概览
+            </div>
+            <span className="badge" style={{ background: '#6C5CE7', color: '#fff' }}>
+              {prepSummary.total_checklists} 个清单
+            </span>
+          </div>
+          <div className="card-body">
+            <div className="grid-4" style={{ marginBottom: 16 }}>
+              <div className="metric-card" style={{ background: '#DFE6E9' }}>
+                <div className="metric-value">{prepSummary.status_distribution?.not_started || 0}</div>
+                <div className="metric-label">未开始</div>
+              </div>
+              <div className="metric-card yellow">
+                <div className="metric-value">{prepSummary.status_distribution?.in_progress || 0}</div>
+                <div className="metric-label">准备中</div>
+              </div>
+              <div className="metric-card green">
+                <div className="metric-value">{prepSummary.status_distribution?.completed || 0}</div>
+                <div className="metric-label">已完成</div>
+              </div>
+              <div className="metric-card" style={{ background: '#EDEFFC' }}>
+                <div className="metric-value" style={{ color: '#6C5CE7' }}>{prepSummary.status_distribution?.verified || 0}</div>
+                <div className="metric-label">已核验</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+              <span style={{ color: '#636E72' }}>平均准备完成率: <strong>{(prepSummary.avg_completion_rate * 100).toFixed(0)}%</strong></span>
+              <span style={{ color: '#636E72' }}>缺失项: <strong style={{ color: '#E17055' }}>{prepSummary.verification_stats?.total_missing_items || 0}</strong> | 补录: <strong style={{ color: '#6C5CE7' }}>{prepSummary.verification_stats?.total_supplemented_items || 0}</strong></span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="tabs">
         <button

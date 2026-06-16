@@ -6,7 +6,7 @@ import {
 import {
   fetchBabies, fetchStats, fetchVaccinationRate, fetchDelayCount,
   fetchReactionDistribution, fetchMonthlyProgress,
-  fetchCollaborationStats, fetchFamilies,
+  fetchCollaborationStats, fetchFamilies, fetchPreparationStats,
 } from '../api'
 
 const COLORS = ['#6C5CE7', '#00B894', '#FDCB6E', '#E17055', '#74B9FF', '#A29BFE', '#FD79A8']
@@ -23,6 +23,7 @@ export default function Statistics() {
   const [reactionDist, setReactionDist] = useState(null)
   const [monthlyProgress, setMonthlyProgress] = useState([])
   const [collaborationStats, setCollaborationStats] = useState(null)
+  const [preparationStats, setPreparationStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [collabLoading, setCollabLoading] = useState(false)
   const [filterType, setFilterType] = useState('all')
@@ -70,7 +71,20 @@ export default function Statistics() {
 
   useEffect(() => {
     loadCollaborationStats()
+    loadPreparationStats()
   }, [selectedBaby, selectedFamily, filterType])
+
+  const loadPreparationStats = async () => {
+    try {
+      const babyId = filterType === 'baby' && selectedBaby ? selectedBaby : null
+      const familyId = filterType === 'family' && selectedFamily ? selectedFamily : null
+      const data = await fetchPreparationStats(babyId, familyId)
+      setPreparationStats(data)
+    } catch (err) {
+      console.error('Failed to fetch preparation stats:', err)
+      setPreparationStats(null)
+    }
+  }
 
   const loadCollaborationStats = async () => {
     setCollabLoading(true)
@@ -510,6 +524,125 @@ export default function Statistics() {
       )}
 
       {renderCollaborationStats()}
+
+      {preparationStats && preparationStats.overview && preparationStats.overview.total_checklists > 0 && (
+        <div className="collaboration-stats" style={{ marginTop: 20 }}>
+          <div className="page-header" style={{ marginBottom: 20 }}>
+            <div>
+              <h2 style={{ fontSize: 20 }}>🏥 到院准备核验统计</h2>
+              <p style={{ fontSize: 14, color: '#636E72' }}>准备清单状态、核验完成率、缺失项与补录统计</p>
+            </div>
+          </div>
+
+          <div className="card" style={{ marginBottom: 20, background: 'linear-gradient(135deg, #F8F9FD 0%, #E8EAFC 100%)' }}>
+            <div className="card-title" style={{ color: '#6C5CE7' }}>📈 核验概览</div>
+            <div className="card-body">
+              <div className="grid-4" style={{ marginBottom: 24 }}>
+                <div className="metric-card green">
+                  <div className="metric-value">{preparationStats.overview.avg_completion_percent || 0}%</div>
+                  <div className="metric-label">平均准备完成率</div>
+                </div>
+                <div className="metric-card" style={{ background: '#EDEFFC' }}>
+                  <div className="metric-value" style={{ color: '#6C5CE7' }}>{preparationStats.overview.verified || 0}</div>
+                  <div className="metric-label">已核验清单</div>
+                </div>
+                <div className="metric-card yellow">
+                  <div className="metric-value">{preparationStats.verification_stats?.total_missing_items || 0}</div>
+                  <div className="metric-label">临时缺失项</div>
+                </div>
+                <div className="metric-card" style={{ background: '#D1FAE5' }}>
+                  <div className="metric-value" style={{ color: '#00B894' }}>{preparationStats.verification_stats?.total_supplemented_items || 0}</div>
+                  <div className="metric-label">现场补录项</div>
+                </div>
+              </div>
+
+              <div className="grid-4" style={{ marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>未开始</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#B2BEC3' }}>{preparationStats.overview.not_started || 0}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>准备中</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#FDCB6E' }}>{preparationStats.overview.in_progress || 0}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>已完成</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#00B894' }}>{preparationStats.overview.completed || 0}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>已核验</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: '#6C5CE7' }}>{preparationStats.overview.verified || 0}</div>
+                </div>
+              </div>
+
+              {preparationStats.by_category && Object.keys(preparationStats.by_category).length > 0 && (
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 12 }}>各类别确认率</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {Object.entries(preparationStats.by_category).map(([cat, stats]) => {
+                      const catLabels = {
+                        document: '📄 证件材料', vaccine_book: '💉 疫苗本', medical_history: '🏥 既往病史',
+                        fasting: '🍽️ 空腹要求', companion: '👤 陪同人信息', transport: '🚗 交通出发时间', other: '📦 其他',
+                      }
+                      const rate = stats.total > 0 ? Math.round((stats.confirmed / stats.total) * 100) : 0
+                      const color = rate >= 80 ? '#00B894' : rate >= 50 ? '#FDCB6E' : '#E17055'
+                      return (
+                        <div key={cat}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+                            <span>{catLabels[cat] || cat}</span>
+                            <span style={{ fontWeight: 600, color }}>{stats.confirmed}/{stats.total} ({rate}%)</span>
+                          </div>
+                          <div className="progress-bar-container">
+                            <div className="progress-bar-fill" style={{ width: `${rate}%`, background: color }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {preparationStats.recent_checklists && preparationStats.recent_checklists.length > 0 && (
+            <div className="card">
+              <div className="card-title">📋 最近准备清单</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>宝宝</th>
+                    <th>类型</th>
+                    <th>预约日期</th>
+                    <th>准备状态</th>
+                    <th>完成率</th>
+                    <th>核验</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preparationStats.recent_checklists.map(cl => (
+                    <tr key={cl.id}>
+                      <td>{cl.baby_name}</td>
+                      <td>{cl.appointment_type === 'vaccine' ? (cl.vaccine_name || '疫苗') : (cl.checkup_type || '体检')}</td>
+                      <td>{cl.appointment_date}</td>
+                      <td>
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 8, fontSize: 12,
+                          background: cl.status === 'verified' ? '#EDEFFC' : cl.status === 'completed' ? '#D1FAE5' : cl.status === 'in_progress' ? '#FEF3C7' : '#DFE6E9',
+                          color: cl.status === 'verified' ? '#6C5CE7' : cl.status === 'completed' ? '#00B894' : cl.status === 'in_progress' ? '#92400E' : '#636E72',
+                        }}>
+                          {cl.status_label}
+                        </span>
+                      </td>
+                      <td>{(cl.completion_rate * 100).toFixed(0)}%</td>
+                      <td>{cl.has_verification ? '✅' : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {!stats && !vaccinationRate.length && !delayCount && !reactionDist && !monthlyProgressWithRates.length && !collaborationStats && (
         <div className="empty-state">

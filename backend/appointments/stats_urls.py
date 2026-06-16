@@ -9,4 +9,5 @@ urlpatterns = [
     path('monthly-progress/', stats_views.MonthlyProgressView.as_view(), name='stats-monthly-progress'),
     path('collaboration/', stats_views.CollaborationStatsView.as_view(), name='stats-collaboration'),
     path('family-reminders/', stats_views.FamilyReminderStatsView.as_view(), name='stats-family-reminders'),
+    path('preparation/', stats_views.PreparationStatsView.as_view(), name='stats-preparation'),
 ]

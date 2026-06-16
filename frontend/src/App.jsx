@@ -10,6 +10,7 @@ import ReactionList from './pages/ReactionList'
 import ReactionForm from './pages/ReactionForm'
 import Statistics from './pages/Statistics'
 import Family from './pages/Family'
+import PreparationCenter from './pages/PreparationCenter'
 
 const navItems = [
   { path: '/babies', label: '宝宝档案', icon: '👶' },
@@ -17,6 +18,7 @@ const navItems = [
   { path: '/appointments', label: '预约记录', icon: '📋' },
   { path: '/reactions', label: '反应观察', icon: '💊' },
   { path: '/family', label: '家庭共享', icon: '👨‍👩‍👧‍👦' },
+  { path: '/preparation', label: '到院准备', icon: '🏥' },
   { path: '/statistics', label: '数据统计', icon: '📊' },
 ]
 
@@ -58,6 +60,7 @@ export default function App() {
           <Route path="/reactions" element={<ReactionList />} />
           <Route path="/reactions/new" element={<ReactionForm />} />
           <Route path="/family" element={<Family />} />
+          <Route path="/preparation" element={<PreparationCenter />} />
           <Route path="/statistics" element={<Statistics />} />
         </Routes>
       </main>

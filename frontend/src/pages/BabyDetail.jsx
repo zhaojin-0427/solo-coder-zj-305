@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { fetchBaby, fetchSchedules, markScheduleCompleted, fetchCheckupRecords, generateSchedule, fetchTaskFlow } from '../api'
+import { fetchBaby, fetchSchedules, markScheduleCompleted, fetchCheckupRecords, generateSchedule, fetchTaskFlow, fetchChecklistByBaby } from '../api'
 
 const STATUS_CONFIG = {
   pending: { label: '待接种', className: 'badge badge-warning' },
@@ -34,6 +34,7 @@ export default function BabyDetail() {
   const [taskFlow, setTaskFlow] = useState(null)
   const [taskFlowMonth, setTaskFlowMonth] = useState(null)
   const [taskFlowLoading, setTaskFlowLoading] = useState(false)
+  const [prepChecklists, setPrepChecklists] = useState([])
 
   useEffect(() => {
     Promise.all([
@@ -48,6 +49,10 @@ export default function BabyDetail() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
+
+    fetchChecklistByBaby(id)
+      .then(data => setPrepChecklists(Array.isArray(data) ? data : []))
+      .catch(() => {})
   }, [id])
 
   const loadTaskFlow = (month) => {
@@ -439,6 +444,12 @@ export default function BabyDetail() {
         >
           🩺 体检记录
         </button>
+        <button
+          className={`tab ${activeTab === 'preparation' ? 'active' : ''}`}
+          onClick={() => handleTabChange('preparation')}
+        >
+          🏥 到院准备 {prepChecklists.length > 0 ? `(${prepChecklists.length})` : ''}
+        </button>
       </div>
 
       {activeTab === 'taskflow' && renderTaskFlow()}
@@ -545,6 +556,72 @@ export default function BabyDetail() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'preparation' && (
+        <div className="tab-content">
+          {prepChecklists.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">🏥</div>
+              <p>暂无到院准备记录</p>
+              <button className="btn btn-primary" onClick={() => navigate('/preparation')}>
+                前往到院准备中心
+              </button>
+            </div>
+          ) : (
+            <div className="card-list">
+              {prepChecklists.map(cl => {
+                const prepStatusMap = {
+                  not_started: { label: '未开始', color: '#B2BEC3', bg: '#DFE6E9' },
+                  in_progress: { label: '准备中', color: '#FDCB6E', bg: '#FEF3C7' },
+                  completed: { label: '已完成', color: '#00B894', bg: '#D1FAE5' },
+                  verified: { label: '已核验', color: '#6C5CE7', bg: '#EDEFFC' },
+                }
+                const prepCfg = prepStatusMap[cl.status] || prepStatusMap.not_started
+                return (
+                  <div key={cl.id} className="card" style={{ borderLeft: `4px solid ${prepCfg.color}` }}>
+                    <div className="card-header">
+                      <span className="card-title">{cl.appointment_info?.vaccine_name || cl.appointment_info?.checkup_type || '预约'}</span>
+                      <span style={{ padding: '2px 10px', borderRadius: 10, fontSize: 12, background: prepCfg.bg, color: prepCfg.color, fontWeight: 600 }}>
+                        {prepCfg.label}
+                      </span>
+                    </div>
+                    <div className="card-body">
+                      <div className="card-row">
+                        <span className="card-label">预约日期</span>
+                        <span className="card-value">{cl.appointment_info?.date}</span>
+                      </div>
+                      <div className="card-row">
+                        <span className="card-label">预约医院</span>
+                        <span className="card-value">{cl.appointment_info?.hospital}</span>
+                      </div>
+                      <div className="card-row">
+                        <span className="card-label">准备进度</span>
+                        <span className="card-value">
+                          {(cl.completion_rate * 100).toFixed(0)}%
+                          <div className="progress-bar-container" style={{ width: 100, display: 'inline-block', marginLeft: 8, verticalAlign: 'middle' }}>
+                            <div className="progress-bar-fill" style={{ width: `${cl.completion_rate * 100}%`, background: prepCfg.color }} />
+                          </div>
+                        </span>
+                      </div>
+                      {cl.report_generated && (
+                        <div className="card-row">
+                          <span className="card-label">报告</span>
+                          <span className="card-value text-success">✅ 已生成</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="card-actions">
+                      <button className="btn btn-sm btn-primary" onClick={() => navigate('/preparation')}>
+                        🏥 查看详情
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

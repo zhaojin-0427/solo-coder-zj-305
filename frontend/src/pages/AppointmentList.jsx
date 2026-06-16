@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchAppointments, updateAppointment, markAppointmentReminded, unmarkAppointmentReminded } from '../api';
+import { fetchAppointments, updateAppointment, markAppointmentReminded, unmarkAppointmentReminded, fetchChecklistByAppointment } from '../api';
 
 const TIME_SLOT_MAP = {
   morning_1: '上午 08:00-09:00',
@@ -29,6 +29,7 @@ export default function AppointmentList() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [currentUser, setCurrentUser] = useState('1');
+  const [prepStatus, setPrepStatus] = useState({});
 
   useEffect(() => {
     loadAppointments();
@@ -48,6 +49,25 @@ export default function AppointmentList() {
       setLoading(false);
     }
   };
+
+  const loadPrepStatus = async (aptId) => {
+    try {
+      const res = await fetchChecklistByAppointment(aptId);
+      if (res.exists) {
+        setPrepStatus(prev => ({ ...prev, [aptId]: res.checklist }));
+      }
+    } catch (err) {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (appointments.length > 0) {
+      appointments.forEach(apt => {
+        if (apt.status !== 'cancelled') loadPrepStatus(apt.id);
+      });
+    }
+  }, [appointments.length]);
 
   useEffect(() => {
     loadAppointments();
@@ -155,6 +175,22 @@ export default function AppointmentList() {
                     <span className="card-label">预约医院</span>
                     <span className="card-value">{apt.hospital}</span>
                   </div>
+                  {prepStatus[apt.id] && (
+                    <div className="card-row">
+                      <span className="card-label">准备状态</span>
+                      <span className="card-value">
+                        <span style={{
+                          padding: '2px 8px', borderRadius: 8, fontSize: 12, fontWeight: 500,
+                          background: prepStatus[apt.id].status === 'verified' ? '#EDEFFC' : prepStatus[apt.id].status === 'completed' ? '#D1FAE5' : prepStatus[apt.id].status === 'in_progress' ? '#FEF3C7' : '#DFE6E9',
+                          color: prepStatus[apt.id].status === 'verified' ? '#6C5CE7' : prepStatus[apt.id].status === 'completed' ? '#00B894' : prepStatus[apt.id].status === 'in_progress' ? '#92400E' : '#636E72',
+                        }}>
+                          {prepStatus[apt.id].status === 'not_started' ? '未开始' : prepStatus[apt.id].status === 'in_progress' ? '准备中' : prepStatus[apt.id].status === 'completed' ? '已完成' : '已核验'}
+                          {' '}{(prepStatus[apt.id].completion_rate * 100).toFixed(0)}%
+                        </span>
+                        <Link to="/preparation" style={{ marginLeft: 8, fontSize: 12, color: '#6C5CE7' }}>查看详情 →</Link>
+                      </span>
+                    </div>
+                  )}
                   {apt.reminded_at && (
                     <div className="card-row">
                       <span className="card-label">提醒状态</span>

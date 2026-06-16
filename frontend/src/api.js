@@ -95,4 +95,63 @@ export const fetchFamilyReminderStats = (babyId, familyId) => {
   return api.get('stats/family-reminders/', { params })
 }
 
+export const fetchPreparationStats = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/preparation/', { params })
+}
+
+export const generatePreparationChecklist = (appointmentId, userId) => {
+  const data = { appointment_id: appointmentId }
+  if (userId) data.user_id = userId
+  return api.post('preparation/checklists/generate/', data)
+}
+
+export const fetchPreparationChecklists = (params) => api.get('preparation/checklists/', { params })
+export const fetchPreparationChecklist = (id) => api.get(`preparation/checklists/${id}/`)
+export const fetchChecklistByAppointment = (appointmentId) => {
+  return api.get('preparation/checklists/by_appointment/', { params: { appointment_id: appointmentId } })
+}
+export const fetchChecklistByBaby = (babyId) => {
+  return api.get('preparation/checklists/by_baby/', { params: { baby_id: babyId } })
+}
+export const fetchChecklistSummary = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('preparation/checklists/summary/', { params })
+}
+export const confirmChecklistItem = (checklistId, itemId, confirmed = true, userId) => {
+  const data = { item_id: itemId, confirmed }
+  if (userId) data.user_id = userId
+  return api.post(`preparation/checklists/${checklistId}/confirm_item/`, data)
+}
+export const batchConfirmItems = (checklistId, itemIds, confirmed = true, userId) => {
+  const data = { item_ids: itemIds, confirmed }
+  if (userId) data.user_id = userId
+  return api.post(`preparation/checklists/${checklistId}/batch_confirm/`, data)
+}
+export const generateChecklistReport = (checklistId) => {
+  return api.post(`preparation/checklists/${checklistId}/generate_report/`)
+}
+export const fetchChecklistReport = (checklistId) => {
+  return api.get(`preparation/checklists/${checklistId}/report/`)
+}
+export const createArrivalVerification = (checklistId, data = {}) => {
+  return api.post('preparation/verifications/create_verification/', { checklist_id: checklistId, ...data })
+}
+export const fetchVerificationByAppointment = (appointmentId) => {
+  return api.get('preparation/verifications/by_appointment/', { params: { appointment_id: appointmentId } })
+}
+export const updateArrivalVerification = (id, data) => {
+  return api.post(`preparation/verifications/${id}/update_verification/`, data)
+}
+export const addVerificationSupplement = (id, itemName, description = '') => {
+  return api.post(`preparation/verifications/${id}/add_supplement/`, { item_name: itemName, description })
+}
+export const addVerificationMissing = (id, itemName, description = '') => {
+  return api.post(`preparation/verifications/${id}/add_missing/`, { item_name: itemName, description })
+}
+
 export default api

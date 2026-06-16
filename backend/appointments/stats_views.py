@@ -422,6 +422,92 @@ class CollaborationStatsView(APIView):
         })
 
 
+from preparation.models import PreparationChecklist, ChecklistItem, ArrivalVerification
+
+
+class PreparationStatsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+
+        checklists_qs = PreparationChecklist.objects.all()
+        if baby_id:
+            checklists_qs = checklists_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            checklists_qs = checklists_qs.filter(baby_id__in=baby_ids)
+
+        total = checklists_qs.count()
+        not_started = checklists_qs.filter(status='not_started').count()
+        in_progress = checklists_qs.filter(status='in_progress').count()
+        completed = checklists_qs.filter(status='completed').count()
+        verified = checklists_qs.filter(status='verified').count()
+        reports_generated = checklists_qs.filter(report_generated=True).count()
+
+        verifications_qs = ArrivalVerification.objects.filter(checklist__in=checklists_qs)
+        total_verifications = verifications_qs.count()
+        total_missing = sum(len(v.missing_items) for v in verifications_qs)
+        total_supplemented = sum(len(v.supplemented_items) for v in verifications_qs)
+
+        avg_completion = 0
+        if total > 0:
+            avg_completion = round(sum(c.completion_rate for c in checklists_qs) / total, 4)
+
+        by_category = {}
+        all_items = ChecklistItem.objects.filter(checklist__in=checklists_qs)
+        for item in all_items:
+            cat = item.category
+            if cat not in by_category:
+                by_category[cat] = {'total': 0, 'confirmed': 0, 'required': 0, 'required_confirmed': 0}
+            by_category[cat]['total'] += 1
+            if item.confirmed:
+                by_category[cat]['confirmed'] += 1
+            if item.is_required:
+                by_category[cat]['required'] += 1
+                if item.confirmed:
+                    by_category[cat]['required_confirmed'] += 1
+
+        recent_checklists = checklists_qs.select_related('appointment', 'baby')[:10]
+        recent_list = []
+        for cl in recent_checklists:
+            apt = cl.appointment
+            recent_list.append({
+                'id': cl.id,
+                'baby_name': cl.baby.name,
+                'appointment_date': str(apt.appointment_date),
+                'appointment_type': apt.appointment_type,
+                'vaccine_name': apt.vaccine.short_name if apt.vaccine else None,
+                'checkup_type': apt.checkup_type or None,
+                'status': cl.status,
+                'status_label': cl.get_status_display(),
+                'completion_rate': cl.completion_rate,
+                'report_generated': cl.report_generated,
+                'has_verification': ArrivalVerification.objects.filter(checklist=cl).exists(),
+            })
+
+        return Response({
+            'overview': {
+                'total_checklists': total,
+                'not_started': not_started,
+                'in_progress': in_progress,
+                'completed': completed,
+                'verified': verified,
+                'reports_generated': reports_generated,
+                'avg_completion_rate': avg_completion,
+                'avg_completion_percent': round(avg_completion * 100, 2),
+            },
+            'verification_stats': {
+                'total_verifications': total_verifications,
+                'total_missing_items': total_missing,
+                'total_supplemented_items': total_supplemented,
+            },
+            'by_category': by_category,
+            'recent_checklists': recent_list,
+        })
+
+
 class FamilyReminderStatsView(APIView):
     permission_classes = [AllowAny]
 

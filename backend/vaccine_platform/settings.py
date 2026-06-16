@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     'appointments',
     'checkups',
     'reactions',
+    'preparation',
     'rest_framework',
     'corsheaders',
     'django_filters',

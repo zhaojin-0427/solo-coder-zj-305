@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/accounts/', include('accounts.urls')),
     path('api/stats/', include('appointments.stats_urls')),
+    path('api/preparation/', include('preparation.urls')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
