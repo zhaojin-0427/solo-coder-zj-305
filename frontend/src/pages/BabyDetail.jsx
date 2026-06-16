@@ -21,8 +21,8 @@ export default function BabyDetail() {
   useEffect(() => {
     Promise.all([
       fetchBaby(id),
-      fetchSchedules({ baby: id }),
-      fetchCheckupRecords({ baby: id }),
+      fetchSchedules({ baby: id, page_size: 1000 }),
+      fetchCheckupRecords({ baby: id, page_size: 1000 }),
     ])
       .then(([babyData, schedulesData, checkupsData]) => {
         setBaby(babyData)
@@ -46,8 +46,8 @@ export default function BabyDetail() {
     setGenerating(true)
     try {
       await generateSchedule(id)
-      const res = await fetchSchedules({ baby: id })
-      setSchedules(res.data.results || res.data)
+      const res = await fetchSchedules({ baby: id, page_size: 1000 })
+      setSchedules(res || [])
     } catch (err) {
       console.error(err)
     } finally {

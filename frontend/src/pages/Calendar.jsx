@@ -23,7 +23,7 @@ export default function Calendar() {
   useEffect(() => {
     Promise.all([
       fetchBabies(),
-      fetchSchedules(),
+      fetchSchedules({ page_size: 1000 }),
     ])
       .then(([babiesData, schedulesData]) => {
         setBabies(babiesData)
@@ -35,7 +35,7 @@ export default function Calendar() {
 
   useEffect(() => {
     if (babies.length === 0) return
-    fetchAppointments()
+    fetchAppointments({ page_size: 1000 })
       .then(data => setAppointments(data))
       .catch(() => setAppointments([]))
   }, [babies])
@@ -139,7 +139,7 @@ export default function Calendar() {
                         {daySchedules.slice(0, 3).map(s => (
                           <div
                             key={s.id}
-                            className={`day-chip chip-${s.vaccine?.vaccine_type || 'free'}`}
+                            className={`day-chip chip-${s.vaccine_type || 'free'}`}
                             title={`${getBabyName(s.baby)} - ${s.vaccine_name || s.vaccine}`}
                           >
                             {s.vaccine_name || '疫苗'}
@@ -186,8 +186,8 @@ export default function Calendar() {
             <>
               {selectedDaySchedules.map(s => (
                 <div key={s.id} className="day-detail-item">
-                  <span className={`detail-type type-${s.vaccine?.vaccine_type || 'free'}`}>
-                    {s.vaccine?.vaccine_type === 'paid' ? '自费' : '免费'}
+                  <span className={`detail-type type-${s.vaccine_type || 'free'}`}>
+                    {s.vaccine_type === 'paid' ? '自费' : '免费'}
                   </span>
                   <span className="detail-baby">{getBabyName(s.baby)}</span>
                   <span className="detail-name">{s.vaccine_name || s.vaccine}</span>
