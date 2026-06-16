@@ -59,10 +59,27 @@ export default function AppointmentForm() {
         ]);
         setBabies(babiesData);
         setVaccines(vaccinesData);
-        const preselectedBaby = babiesData.find(b => b.id === Number(query.get('baby_id')));
-        if (preselectedBaby) {
-          setForm(prev => ({ ...prev, hospital: preselectedBaby.hospital_preference || '' }));
-        }
+        
+        const urlBabyId = query.get('baby_id');
+        const urlVaccineId = query.get('vaccine_id');
+        const urlType = query.get('type') || 'vaccine';
+        const urlCheckupName = query.get('checkup_name');
+        
+        const preselectedBaby = babiesData.find(b => b.id === Number(urlBabyId));
+        const preselectedVaccine = urlVaccineId ? vaccinesData.find(v => v.id === Number(urlVaccineId)) : null;
+        
+        const updatedForm = {
+          baby: urlBabyId || '',
+          appointment_type: urlType,
+          vaccine: preselectedVaccine ? String(preselectedVaccine.id) : '',
+          checkup_type: urlCheckupName || '',
+          appointment_date: form.appointment_date,
+          time_slot: form.time_slot,
+          hospital: preselectedBaby?.hospital_preference || form.hospital,
+          remarks: form.remarks,
+        };
+        
+        setForm(updatedForm);
       } catch (err) {
         console.error('Failed to load form data:', err);
       } finally {

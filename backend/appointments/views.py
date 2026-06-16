@@ -88,8 +88,16 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def mark_reminded(self, request, pk=None):
+        from accounts.models import User
         appointment = self.get_object()
-        appointment.reminded_by = request.user if request.user.is_authenticated else None
+        user_id = request.data.get('user_id')
+        if user_id:
+            try:
+                appointment.reminded_by = User.objects.get(pk=user_id)
+            except User.DoesNotExist:
+                appointment.reminded_by = request.user if request.user.is_authenticated else None
+        else:
+            appointment.reminded_by = request.user if request.user.is_authenticated else None
         appointment.reminded_at = datetime.now()
         appointment.save()
         serializer = self.get_serializer(appointment)

@@ -123,6 +123,7 @@ class BabyViewSet(viewsets.ModelViewSet):
                 'route': vaccine.get_route_display(),
                 'precautions': vaccine.precautions or None,
                 'related_schedule_id': schedule.id,
+                'vaccine_id': vaccine.id,
                 'appointment': {
                     'id': related_appointment.id if related_appointment else None,
                     'status': related_appointment.status if related_appointment else None,

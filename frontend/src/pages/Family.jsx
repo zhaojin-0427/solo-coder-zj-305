@@ -41,6 +41,7 @@ export default function Family() {
   const [statsLoading, setStatsLoading] = useState(false)
   const [updating, setUpdating] = useState(null)
   const [expandedMember, setExpandedMember] = useState(null)
+  const [currentUser, setCurrentUser] = useState('1')
 
   useEffect(() => {
     Promise.all([
@@ -85,7 +86,7 @@ export default function Family() {
     try {
       const res = isReminded
         ? await unmarkAppointmentReminded(appointmentId)
-        : await markAppointmentReminded(appointmentId)
+        : await markAppointmentReminded(appointmentId, { user_id: currentUser })
       setAppointments(prev => prev.map(a => a.id === appointmentId ? res : a))
       loadFamilyReminderStats()
     } catch (err) {
@@ -124,6 +125,14 @@ export default function Family() {
           <select value={selectedFamily} onChange={e => setSelectedFamily(e.target.value)}>
             {families.map(f => (
               <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="filter-group">
+          <label>当前操作用户:</label>
+          <select value={currentUser} onChange={e => setCurrentUser(e.target.value)}>
+            {members.map(m => (
+              <option key={m.user_id} value={m.user_id}>{m.user?.username || m.username} ({RELATION_LABELS[m.user?.profile?.relation_with_baby] || m.relation_label || '成员'})</option>
             ))}
           </select>
         </div>
@@ -367,10 +376,10 @@ export default function Family() {
                         <span>🕐 {TIME_SLOT_LABELS[apt.time_slot] || apt.time_slot}</span>
                         <span>🏥 {apt.hospital}</span>
                       </div>
-                      {isReminded && apt.reminded_by_name && (
+                      {isReminded && (
                         <div className="reminder-status">
                           <span className="badge badge-success">
-                            ✅ 已由 {apt.reminded_by_name} 提醒
+                            ✅ 已由 {apt.reminded_by_name || '未知用户'} 提醒
                             {apt.reminded_at && ` (${apt.reminded_at.split('T')[0]})`}
                           </span>
                         </div>

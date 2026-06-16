@@ -46,7 +46,7 @@ export const fetchFamilyMembers = (params) => api.get('accounts/family-members/'
 export const createFamily = (data) => api.post('accounts/families/', data)
 export const addFamilyMember = (data) => api.post('accounts/family-members/', data)
 export const removeFamilyMember = (id) => api.delete(`accounts/family-members/${id}/`)
-export const markAppointmentReminded = (id) => api.post(`appointments/${id}/mark_reminded/`)
+export const markAppointmentReminded = (id, data = {}) => api.post(`appointments/${id}/mark_reminded/`, data)
 export const unmarkAppointmentReminded = (id) => api.post(`appointments/${id}/unmark_reminded/`)
 
 export const fetchStats = (babyId) => {

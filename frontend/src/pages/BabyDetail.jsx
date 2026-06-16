@@ -113,9 +113,8 @@ export default function BabyDetail() {
     const params = new URLSearchParams()
     params.set('baby_id', id)
     params.set('type', task.task_type)
-    if (task.task_type === 'vaccine' && task.related_schedule_id) {
-      params.set('schedule_id', task.related_schedule_id)
-      params.set('vaccine_id', task.related_schedule_id ? String(task.related_schedule_id) : '')
+    if (task.task_type === 'vaccine' && task.vaccine_id) {
+      params.set('vaccine_id', String(task.vaccine_id))
     }
     if (task.task_type === 'vaccine' && task.full_name) {
       params.set('vaccine_name', task.title)

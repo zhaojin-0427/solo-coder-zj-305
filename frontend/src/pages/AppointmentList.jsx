@@ -28,6 +28,7 @@ export default function AppointmentList() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [currentUser, setCurrentUser] = useState('1');
 
   useEffect(() => {
     loadAppointments();
@@ -67,7 +68,7 @@ export default function AppointmentList() {
     try {
       const res = isReminded
         ? await unmarkAppointmentReminded(id)
-        : await markAppointmentReminded(id);
+        : await markAppointmentReminded(id, { user_id: currentUser });
       setAppointments(prev => prev.map(apt => apt.id === id ? res : apt));
     } catch (err) {
       console.error('Failed to update remind status:', err);
@@ -108,6 +109,15 @@ export default function AppointmentList() {
             <option value="checkup">体检</option>
           </select>
         </div>
+        <div className="filter-group">
+          <label>当前操作用户：</label>
+          <select value={currentUser} onChange={e => setCurrentUser(e.target.value)}>
+            <option value="1">admin</option>
+            <option value="2">dad</option>
+            <option value="3">grandma</option>
+            <option value="4">grandpa</option>
+          </select>
+        </div>
       </div>
 
       {sortedAppointments.length === 0 ? (
@@ -145,11 +155,11 @@ export default function AppointmentList() {
                     <span className="card-label">预约医院</span>
                     <span className="card-value">{apt.hospital}</span>
                   </div>
-                  {apt.reminded_at && apt.reminded_by_name && (
+                  {apt.reminded_at && (
                     <div className="card-row">
                       <span className="card-label">提醒状态</span>
                       <span className="card-value text-success">
-                        ✅ 已由 {apt.reminded_by_name} 提醒 ({apt.reminded_at.split('T')[0]})
+                        ✅ 已由 {apt.reminded_by_name || '未知用户'} 提醒 ({apt.reminded_at.split('T')[0]})
                       </span>
                     </div>
                   )}
