@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.contrib.auth.models import User
+from babies.models import Baby
 from .models import HealthEvent, HealthEventUpdate, HealthEventView
 from .serializers import (
     HealthEventSerializer,
@@ -24,6 +25,10 @@ class HealthEventViewSet(viewsets.ModelViewSet):
         baby_id = self.request.query_params.get('baby_id')
         if baby_id:
             qs = qs.filter(baby_id=baby_id)
+        family_id = self.request.query_params.get('family_id')
+        if family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            qs = qs.filter(baby_id__in=list(baby_ids))
         appointment_id = self.request.query_params.get('appointment_id')
         if appointment_id:
             qs = qs.filter(appointment_id=appointment_id)

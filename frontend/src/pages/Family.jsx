@@ -52,13 +52,11 @@ export default function Family() {
       fetchFamilies({ page_size: 1000 }),
       fetchFamilyMembers({ page_size: 1000 }),
       fetchAppointments({ page_size: 1000, status: 'pending' }),
-      fetchHealthEvents({ page_size: 1000 }),
     ])
-      .then(([familiesData, membersData, appointmentsData, eventsData]) => {
+      .then(([familiesData, membersData, appointmentsData]) => {
         setFamilies(familiesData)
         setMembers(membersData)
         setAppointments(appointmentsData)
-        setHealthEvents(Array.isArray(eventsData) ? eventsData : [])
         if (familiesData.length > 0) {
           setSelectedFamily(String(familiesData[0].id))
         }
@@ -72,14 +70,37 @@ export default function Family() {
       loadFamilyReminderStats()
       loadPrepSummary()
       loadHealthEventCollab()
+      loadHealthEvents()
     }
   }, [selectedFamily])
+
+  const loadHealthEvents = async () => {
+    if (!selectedFamily) return
+    try {
+      const data = await fetchHealthEvents({ family_id: selectedFamily, page_size: 1000 })
+      setHealthEvents(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error('Failed to load health events:', err)
+    }
+  }
 
   const loadHealthEventCollab = async () => {
     if (!selectedFamily) return
     try {
-      const data = await fetchHealthEventCollaboration(selectedFamily)
-      setHealthEventCollab(data)
+      const data = await fetchHealthEventCollaboration(null, selectedFamily)
+      if (data && data.overview && data.member_stats) {
+        const adapted = {
+          ...data,
+          total_events: data.overview.total_events,
+          total_created_by_users: data.member_stats.filter(m => m.created_count > 0).length,
+          total_viewed_by_users: data.member_stats.filter(m => m.viewed_count > 0).length,
+          total_followed_by_users: data.member_stats.filter(m => m.followed_count > 0).length,
+          by_user: data.member_stats,
+        }
+        setHealthEventCollab(adapted)
+      } else {
+        setHealthEventCollab(data)
+      }
     } catch (err) {
       console.error('Failed to load health event collaboration stats:', err)
     }
