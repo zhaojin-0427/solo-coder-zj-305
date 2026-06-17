@@ -11,12 +11,16 @@ import ReactionForm from './pages/ReactionForm'
 import Statistics from './pages/Statistics'
 import Family from './pages/Family'
 import PreparationCenter from './pages/PreparationCenter'
+import HealthEventList from './pages/HealthEventList'
+import HealthEventForm from './pages/HealthEventForm'
+import HealthEventDetail from './pages/HealthEventDetail'
 
 const navItems = [
   { path: '/babies', label: '宝宝档案', icon: '👶' },
   { path: '/calendar', label: '接种日历', icon: '📅' },
   { path: '/appointments', label: '预约记录', icon: '📋' },
   { path: '/reactions', label: '反应观察', icon: '💊' },
+  { path: '/health-events', label: '健康事件', icon: '🩺' },
   { path: '/family', label: '家庭共享', icon: '👨‍👩‍👧‍👦' },
   { path: '/preparation', label: '到院准备', icon: '🏥' },
   { path: '/statistics', label: '数据统计', icon: '📊' },
@@ -59,6 +63,9 @@ export default function App() {
           <Route path="/appointments/new" element={<AppointmentForm />} />
           <Route path="/reactions" element={<ReactionList />} />
           <Route path="/reactions/new" element={<ReactionForm />} />
+          <Route path="/health-events" element={<HealthEventList />} />
+          <Route path="/health-events/new" element={<HealthEventForm />} />
+          <Route path="/health-events/:id" element={<HealthEventDetail />} />
           <Route path="/family" element={<Family />} />
           <Route path="/preparation" element={<PreparationCenter />} />
           <Route path="/statistics" element={<Statistics />} />

@@ -154,4 +154,51 @@ export const addVerificationMissing = (id, itemName, description = '') => {
   return api.post(`preparation/verifications/${id}/add_missing/`, { item_name: itemName, description })
 }
 
+export const fetchHealthEvents = (params) => api.get('health-events/', { params })
+export const fetchHealthEvent = (id) => api.get(`health-events/${id}/`)
+export const createHealthEvent = (data) => api.post('health-events/', data)
+export const updateHealthEvent = (id, data) => api.patch(`health-events/${id}/`, data)
+export const deleteHealthEvent = (id) => api.delete(`health-events/${id}/`)
+export const addHealthEventUpdate = (eventId, data) => api.post(`health-events/${eventId}/add_update/`, data)
+export const markHealthEventViewed = (eventId, userId) => api.post(`health-events/${eventId}/mark_viewed/`, { user_id: userId })
+export const changeHealthEventStatus = (eventId, data) => api.post(`health-events/${eventId}/change_status/`, data)
+export const assignHealthEventFollower = (eventId, data) => api.post(`health-events/${eventId}/assign_follower/`, data)
+
+export const fetchHealthEventStats = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/health-events/', { params })
+}
+export const fetchHealthEventTrend = (babyId, familyId, days = 30) => {
+  const params = { days }
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/health-events/trend/', { params })
+}
+export const fetchHealthEventSeverity = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/health-events/severity/', { params })
+}
+export const fetchHealthEventRevisitRate = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/health-events/revisit-rate/', { params })
+}
+export const fetchHealthEventByAge = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/health-events/by-age/', { params })
+}
+export const fetchHealthEventCollaboration = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/health-events/collaboration/', { params })
+}
+
 export default api

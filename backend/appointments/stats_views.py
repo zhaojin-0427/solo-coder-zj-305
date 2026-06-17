@@ -423,6 +423,8 @@ class CollaborationStatsView(APIView):
 
 
 from preparation.models import PreparationChecklist, ChecklistItem, ArrivalVerification
+from health_events.models import HealthEvent
+from collections import defaultdict as dd
 
 
 class PreparationStatsView(APIView):
@@ -574,3 +576,299 @@ class FamilyReminderStatsView(APIView):
                 'members': member_data,
             })
         return Response(result)
+
+
+class HealthEventStatsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+
+        events_qs = HealthEvent.objects.select_related('baby', 'created_by', 'followed_by')
+
+        if baby_id:
+            events_qs = events_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            events_qs = events_qs.filter(baby_id__in=list(baby_ids))
+
+        total = events_qs.count()
+        by_status = {}
+        by_severity = {}
+        by_type = {}
+
+        for event in events_qs:
+            status = event.status
+            severity = event.severity
+            etype = event.event_type
+            by_status[status] = by_status.get(status, 0) + 1
+            by_severity[severity] = by_severity.get(severity, 0) + 1
+            by_type[etype] = by_type.get(etype, 0) + 1
+
+        observing = by_status.get('observing', 0)
+        need_revisit = by_status.get('need_revisit', 0)
+        relieved = by_status.get('relieved', 0)
+        archived = by_status.get('archived', 0)
+
+        revisit_rate = round(need_revisit / max(total, 1), 4)
+
+        by_status_list = [
+            {'status': k, 'status_label': dict(HealthEvent.STATUS_CHOICES).get(k, k), 'count': v}
+            for k, v in sorted(by_status.items(), key=lambda x: -x[1])
+        ]
+        by_severity_list = [
+            {'severity': k, 'severity_label': dict(HealthEvent.SEVERITY_CHOICES).get(k, k), 'count': v}
+            for k, v in sorted(by_severity.items(), key=lambda x: -x[1])
+        ]
+        by_type_list = [
+            {'event_type': k, 'event_type_label': dict(HealthEvent.EVENT_TYPE_CHOICES).get(k, k), 'count': v}
+            for k, v in sorted(by_type.items(), key=lambda x: -x[1])
+        ]
+
+        return Response({
+            'overview': {
+                'total_events': total,
+                'observing': observing,
+                'need_revisit': need_revisit,
+                'relieved': relieved,
+                'archived': archived,
+                'revisit_rate': revisit_rate,
+                'revisit_rate_percent': round(revisit_rate * 100, 2),
+            },
+            'by_status': by_status_list,
+            'by_severity': by_severity_list,
+            'by_type': by_type_list,
+        })
+
+
+class HealthEventTrendView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+        days = int(request.query_params.get('days', 30))
+
+        events_qs = HealthEvent.objects.select_related('baby')
+
+        if baby_id:
+            events_qs = events_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            events_qs = events_qs.filter(baby_id__in=list(baby_ids))
+
+        from datetime import date, timedelta
+        today = date.today()
+        start_date = today - timedelta(days=days - 1)
+
+        date_counts = {}
+        for i in range(days):
+            d = start_date + timedelta(days=i)
+            date_counts[str(d)] = 0
+
+        events = events_qs.filter(occurrence_time__date__gte=start_date)
+        for event in events:
+            d = str(event.occurrence_time.date())
+            if d in date_counts:
+                date_counts[d] += 1
+
+        result = []
+        for d, cnt in sorted(date_counts.items()):
+            result.append({'date': d, 'count': cnt})
+
+        return Response(result)
+
+
+class HealthEventSeverityDistributionView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+
+        events_qs = HealthEvent.objects.select_related('baby')
+
+        if baby_id:
+            events_qs = events_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            events_qs = events_qs.filter(baby_id__in=list(baby_ids))
+
+        severity_choices = dict(HealthEvent.SEVERITY_CHOICES)
+        severity_data = {}
+        for sev_key, sev_label in severity_choices.items():
+            type_dist = {}
+            type_choices = dict(HealthEvent.EVENT_TYPE_CHOICES)
+            sev_events = events_qs.filter(severity=sev_key)
+            for t_key in type_choices.keys():
+                type_dist[t_key] = {
+                    'event_type_label': type_choices[t_key],
+                    'count': sev_events.filter(event_type=t_key).count(),
+                }
+            severity_data[sev_key] = {
+                'severity_label': sev_label,
+                'total': sev_events.count(),
+                'by_type': type_dist,
+            }
+
+        return Response(severity_data)
+
+
+class HealthEventRevisitRateView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+
+        events_qs = HealthEvent.objects.select_related('baby')
+
+        if baby_id:
+            events_qs = events_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            events_qs = events_qs.filter(baby_id__in=list(baby_ids))
+
+        total = events_qs.count()
+        need_revisit = events_qs.filter(status='need_revisit').count()
+        has_next_visit = events_qs.filter(next_visit_date__isnull=False).count()
+
+        by_type = {}
+        type_choices = dict(HealthEvent.EVENT_TYPE_CHOICES)
+        for t_key, t_label in type_choices.items():
+            type_events = events_qs.filter(event_type=t_key)
+            type_total = type_events.count()
+            type_revisit = type_events.filter(status='need_revisit').count()
+            by_type[t_key] = {
+                'event_type_label': t_label,
+                'total': type_total,
+                'need_revisit': type_revisit,
+                'rate': round(type_revisit / max(type_total, 1), 4),
+                'rate_percent': round(type_revisit / max(type_total, 1) * 100, 2),
+            }
+
+        return Response({
+            'overview': {
+                'total_events': total,
+                'need_revisit_count': need_revisit,
+                'has_next_visit_date': has_next_visit,
+                'overall_revisit_rate': round(need_revisit / max(total, 1), 4),
+                'overall_revisit_rate_percent': round(need_revisit / max(total, 1) * 100, 2),
+            },
+            'by_event_type': by_type,
+        })
+
+
+class HealthEventByAgeView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+
+        events_qs = HealthEvent.objects.select_related('baby')
+
+        if baby_id:
+            events_qs = events_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            events_qs = events_qs.filter(baby_id__in=list(baby_ids))
+
+        age_stage_data = {}
+        type_choices = dict(HealthEvent.EVENT_TYPE_CHOICES)
+
+        for stage_name, min_month, max_month in AGE_STAGES:
+            stage_events = []
+            for event in events_qs:
+                if not (event.baby and event.baby.birth_date and event.occurrence_time):
+                    continue
+                age_months = _calculate_age_months(event.baby.birth_date, event.occurrence_time.date())
+                if min_month <= age_months < max_month:
+                    stage_events.append(event)
+
+            stage_total = len(stage_events)
+            type_counts = {}
+            for t_key in type_choices.keys():
+                type_counts[t_key] = sum(1 for e in stage_events if e.event_type == t_key)
+
+            age_stage_data[stage_name] = {
+                'total': stage_total,
+                'by_type': {
+                    t_key: {
+                        'event_type_label': type_choices[t_key],
+                        'count': type_counts[t_key],
+                        'rate': round(type_counts[t_key] / max(stage_total, 1), 4) if stage_total > 0 else 0,
+                        'rate_percent': round(type_counts[t_key] / max(stage_total, 1) * 100, 2) if stage_total > 0 else 0,
+                    }
+                    for t_key in type_choices.keys()
+                },
+            }
+
+        return Response(age_stage_data)
+
+
+class HealthEventCollaborationView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+
+        events_qs = HealthEvent.objects.select_related(
+            'baby', 'created_by', 'followed_by'
+        ).prefetch_related('views')
+
+        if baby_id:
+            events_qs = events_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            events_qs = events_qs.filter(baby_id__in=list(baby_ids))
+
+        total = events_qs.count()
+        has_follower = events_qs.filter(followed_by__isnull=False).count()
+        total_views_count = sum(e.views.count() for e in events_qs)
+
+        creator_stats = dd(lambda: {'created_count': 0, 'viewed_count': 0, 'followed_count': 0})
+
+        for event in events_qs:
+            if event.created_by:
+                uid = str(event.created_by.id)
+                uname = event.created_by.username
+                key = f'{uid}_{uname}'
+                creator_stats[key]['created_count'] += 1
+            if event.followed_by:
+                uid = str(event.followed_by.id)
+                uname = event.followed_by.username
+                key = f'{uid}_{uname}'
+                creator_stats[key]['followed_count'] += 1
+            for view in event.views.all():
+                uid = str(view.viewer.id)
+                uname = view.viewer.username
+                key = f'{uid}_{uname}'
+                creator_stats[key]['viewed_count'] += 1
+
+        member_stats = []
+        for key, counts in creator_stats.items():
+            parts = key.split('_', 1)
+            uid = parts[0]
+            uname = parts[1] if len(parts) > 1 else 'unknown'
+            member_stats.append({
+                'user_id': int(uid),
+                'username': uname,
+                'created_count': counts['created_count'],
+                'viewed_count': counts['viewed_count'],
+                'followed_count': counts['followed_count'],
+            })
+
+        return Response({
+            'overview': {
+                'total_events': total,
+                'events_with_follower': has_follower,
+                'follower_coverage_rate': round(has_follower / max(total, 1), 4),
+                'follower_coverage_percent': round(has_follower / max(total, 1) * 100, 2),
+                'total_views': total_views_count,
+                'avg_views_per_event': round(total_views_count / max(total, 1), 2),
+            },
+            'member_stats': sorted(member_stats, key=lambda x: -(x['created_count'] + x['followed_count'] + x['viewed_count'])),
+        })

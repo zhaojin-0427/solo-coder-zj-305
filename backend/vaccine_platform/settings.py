@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'checkups',
     'reactions',
     'preparation',
+    'health_events',
     'rest_framework',
     'corsheaders',
     'django_filters',

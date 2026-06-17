@@ -10,6 +10,7 @@ from vaccines.views import VaccineViewSet, VaccinationScheduleViewSet
 from appointments.views import AppointmentViewSet
 from checkups.views import CheckupViewSet, CheckupRecordViewSet
 from reactions.views import ReactionViewSet
+from health_events.views import HealthEventViewSet
 
 router = DefaultRouter()
 router.register(r'babies', BabyViewSet, basename='baby')
@@ -19,6 +20,7 @@ router.register(r'appointments', AppointmentViewSet, basename='appointment')
 router.register(r'checkups', CheckupViewSet, basename='checkup')
 router.register(r'checkup-records', CheckupRecordViewSet, basename='checkup-record')
 router.register(r'reactions', ReactionViewSet, basename='reaction')
+router.register(r'health-events', HealthEventViewSet, basename='health-event')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

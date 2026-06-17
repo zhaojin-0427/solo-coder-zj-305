@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { fetchBaby, fetchSchedules, markScheduleCompleted, fetchCheckupRecords, generateSchedule, fetchTaskFlow, fetchChecklistByBaby } from '../api'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import { fetchBaby, fetchSchedules, markScheduleCompleted, fetchCheckupRecords, generateSchedule, fetchTaskFlow, fetchChecklistByBaby, fetchHealthEvents } from '../api'
 
 const STATUS_CONFIG = {
   pending: { label: '待接种', className: 'badge badge-warning' },
@@ -35,6 +35,7 @@ export default function BabyDetail() {
   const [taskFlowMonth, setTaskFlowMonth] = useState(null)
   const [taskFlowLoading, setTaskFlowLoading] = useState(false)
   const [prepChecklists, setPrepChecklists] = useState([])
+  const [healthEvents, setHealthEvents] = useState([])
 
   useEffect(() => {
     Promise.all([
@@ -52,6 +53,10 @@ export default function BabyDetail() {
 
     fetchChecklistByBaby(id)
       .then(data => setPrepChecklists(Array.isArray(data) ? data : []))
+      .catch(() => {})
+
+    fetchHealthEvents({ baby_id: id, page_size: 1000 })
+      .then(data => setHealthEvents(Array.isArray(data) ? data : []))
       .catch(() => {})
   }, [id])
 
@@ -450,6 +455,12 @@ export default function BabyDetail() {
         >
           🏥 到院准备 {prepChecklists.length > 0 ? `(${prepChecklists.length})` : ''}
         </button>
+        <button
+          className={`tab ${activeTab === 'health-events' ? 'active' : ''}`}
+          onClick={() => handleTabChange('health-events')}
+        >
+          🩺 健康事件 {healthEvents.length > 0 ? `(${healthEvents.length})` : ''}
+        </button>
       </div>
 
       {activeTab === 'taskflow' && renderTaskFlow()}
@@ -618,6 +629,112 @@ export default function BabyDetail() {
                       <button className="btn btn-sm btn-primary" onClick={() => navigate('/preparation')}>
                         🏥 查看详情
                       </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'health-events' && (
+        <div className="tab-content">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, color: '#636E72' }}>
+              共 {healthEvents.length} 条健康事件记录
+            </div>
+            <Link to={`/health-events/new?baby_id=${id}`} className="btn btn-primary">
+              ➕ 记录健康事件
+            </Link>
+          </div>
+
+          {healthEvents.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">🩺</div>
+              <p>暂无健康事件记录</p>
+              <Link to={`/health-events/new?baby_id=${id}`} className="btn btn-primary">
+                记录第一条健康事件
+              </Link>
+            </div>
+          ) : (
+            <div className="card-list">
+              {healthEvents.map(event => {
+                const typeIcons = { fever: '🌡️', rash: '🔴', crying: '😭', appetite: '🍽️', sleep: '😴', doctor_followup: '👨‍⚕️', other: '📋' }
+                const typeLabels = { fever: '发热', rash: '皮疹', crying: '异常哭闹', appetite: '食欲变化', sleep: '睡眠异常', doctor_followup: '医生回访建议', other: '其他' }
+                const statusColors = { observing: '#FDCB6E', need_revisit: '#E17055', relieved: '#00B894', archived: '#636E72' }
+                const statusBgs = { observing: '#FEF3C7', need_revisit: '#FEE2E2', relieved: '#D1FAE5', archived: '#DFE6E9' }
+                const statusLabels = { observing: '观察中', need_revisit: '需复诊', relieved: '已缓解', archived: '已归档' }
+                const severityClasses = { mild: 'badge badge-green', moderate: 'badge badge-orange', severe: 'badge badge-red' }
+                const severityLabels = { mild: '轻微', moderate: '中等', severe: '严重' }
+
+                return (
+                  <div key={event.id} className="card">
+                    <div className="card-header">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 20 }}>{typeIcons[event.event_type] || '📋'}</span>
+                        <div>
+                          <div className="card-title">{typeLabels[event.event_type] || event.event_type}</div>
+                          <div style={{ fontSize: 12, color: '#636E72' }}>
+                            {event.occurrence_time?.replace('T', ' ')}
+                            {event.age_months_at_event !== null && event.age_months_at_event !== undefined && (
+                              <span style={{ marginLeft: 8 }}>({event.age_months_at_event}月龄时)</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <span className={severityClasses[event.severity] || 'badge'}>{severityLabels[event.severity] || event.severity}</span>
+                        <span style={{
+                          padding: '2px 10px',
+                          borderRadius: 10,
+                          fontSize: 12,
+                          background: statusBgs[event.status] || '#DFE6E9',
+                          color: statusColors[event.status] || '#636E72',
+                          fontWeight: 600,
+                        }}>
+                          {statusLabels[event.status] || event.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="card-body">
+                      <div className="card-row">
+                        <span className="card-label">症状</span>
+                        <span className="card-value">{event.symptoms}</span>
+                      </div>
+                      {event.temperature && (
+                        <div className="card-row">
+                          <span className="card-label">体温</span>
+                          <span className="card-value" style={{ color: '#E17055', fontWeight: 600 }}>
+                            🌡️ {event.temperature}℃
+                          </span>
+                        </div>
+                      )}
+                      {event.treatment && (
+                        <div className="card-row">
+                          <span className="card-label">处理措施</span>
+                          <span className="card-value">{event.treatment}</span>
+                        </div>
+                      )}
+                      {event.doctor_advice && (
+                        <div className="card-row">
+                          <span className="card-label">医生建议</span>
+                          <span className="card-value">💬 {event.doctor_advice}</span>
+                        </div>
+                      )}
+                      <div className="card-row">
+                        <span className="card-label">跟进</span>
+                        <span className="card-value">
+                          {event.created_by_name && `✍️ ${event.created_by_name}记录`}
+                          {event.followed_by_name && ` · 👤 ${event.followed_by_name}负责`}
+                          {event.viewers_count > 0 && ` · 👁️ ${event.viewers_count}人已查看`}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="card-actions">
+                      <Link to={`/health-events/${event.id}`} className="btn btn-sm btn-primary">
+                        👁️ 查看详情
+                      </Link>
                     </div>
                   </div>
                 )

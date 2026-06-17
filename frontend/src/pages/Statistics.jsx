@@ -7,6 +7,8 @@ import {
   fetchBabies, fetchStats, fetchVaccinationRate, fetchDelayCount,
   fetchReactionDistribution, fetchMonthlyProgress,
   fetchCollaborationStats, fetchFamilies, fetchPreparationStats,
+  fetchHealthEventStats, fetchHealthEventTrend, fetchHealthEventSeverity,
+  fetchHealthEventRevisitRate, fetchHealthEventByAge,
 } from '../api'
 
 const COLORS = ['#6C5CE7', '#00B894', '#FDCB6E', '#E17055', '#74B9FF', '#A29BFE', '#FD79A8']
@@ -27,6 +29,12 @@ export default function Statistics() {
   const [loading, setLoading] = useState(true)
   const [collabLoading, setCollabLoading] = useState(false)
   const [filterType, setFilterType] = useState('all')
+  const [healthEventStats, setHealthEventStats] = useState(null)
+  const [healthEventTrend, setHealthEventTrend] = useState([])
+  const [healthEventSeverity, setHealthEventSeverity] = useState(null)
+  const [healthEventRevisitRate, setHealthEventRevisitRate] = useState(null)
+  const [healthEventByAge, setHealthEventByAge] = useState([])
+  const [healthEventLoading, setHealthEventLoading] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -72,7 +80,34 @@ export default function Statistics() {
   useEffect(() => {
     loadCollaborationStats()
     loadPreparationStats()
+    loadHealthEventStats()
   }, [selectedBaby, selectedFamily, filterType])
+
+  const loadHealthEventStats = async () => {
+    setHealthEventLoading(true)
+    try {
+      const babyId = filterType === 'baby' && selectedBaby ? selectedBaby : null
+      const familyId = filterType === 'family' && selectedFamily ? selectedFamily : null
+
+      const [overview, trend, severity, revisitRate, byAge] = await Promise.all([
+        fetchHealthEventStats(babyId, familyId).catch(() => null),
+        fetchHealthEventTrend(babyId, familyId, 30).catch(() => []),
+        fetchHealthEventSeverity(babyId, familyId).catch(() => null),
+        fetchHealthEventRevisitRate(babyId, familyId).catch(() => null),
+        fetchHealthEventByAge(babyId, familyId).catch(() => []),
+      ])
+
+      setHealthEventStats(overview)
+      setHealthEventTrend(Array.isArray(trend) ? trend : [])
+      setHealthEventSeverity(severity)
+      setHealthEventRevisitRate(revisitRate)
+      setHealthEventByAge(Array.isArray(byAge) ? byAge : [])
+    } catch (err) {
+      console.error('Failed to load health event stats:', err)
+    } finally {
+      setHealthEventLoading(false)
+    }
+  }
 
   const loadPreparationStats = async () => {
     try {
@@ -342,7 +377,7 @@ export default function Statistics() {
           </select>
         </div>
       )}
-      <button className="btn btn-sm btn-secondary" onClick={loadCollaborationStats}>
+      <button className="btn btn-sm btn-secondary" onClick={() => { loadCollaborationStats(); loadPreparationStats(); loadHealthEventStats(); }}>
         🔄 刷新
       </button>
     </div>
@@ -524,6 +559,202 @@ export default function Statistics() {
       )}
 
       {renderCollaborationStats()}
+
+      {(healthEventStats || healthEventTrend.length > 0 || healthEventSeverity || healthEventRevisitRate || healthEventByAge.length > 0) && !healthEventLoading && (
+        <div className="collaboration-stats" style={{ marginTop: 20 }}>
+          <div className="page-header" style={{ marginBottom: 20 }}>
+            <div>
+              <h2 style={{ fontSize: 20 }}>🩺 健康事件追踪统计</h2>
+              <p style={{ fontSize: 14, color: '#636E72' }}>
+                健康事件趋势、严重程度分布、复诊转化率与各月龄常见事件占比
+              </p>
+            </div>
+          </div>
+
+          {healthEventStats && healthEventStats.total > 0 && (
+            <div className="card" style={{ marginBottom: 20, background: 'linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)' }}>
+              <div className="card-title" style={{ color: '#92400E' }}>📈 健康事件总览</div>
+              <div className="card-body">
+                <div className="grid-4" style={{ marginBottom: 16 }}>
+                  <div className="metric-card yellow">
+                    <div className="metric-value">{healthEventStats.total || 0}</div>
+                    <div className="metric-label">健康事件总数</div>
+                  </div>
+                  <div className="metric-card">
+                    <div className="metric-value" style={{ color: '#FDCB6E' }}>{healthEventStats.by_status?.observing || 0}</div>
+                    <div className="metric-label">观察中</div>
+                  </div>
+                  <div className="metric-card" style={{ background: '#FEE2E2' }}>
+                    <div className="metric-value" style={{ color: '#E17055' }}>{healthEventStats.by_status?.need_revisit || 0}</div>
+                    <div className="metric-label">需复诊</div>
+                  </div>
+                  <div className="metric-card green">
+                    <div className="metric-value">{healthEventStats.by_status?.relieved || 0}</div>
+                    <div className="metric-label">已缓解</div>
+                  </div>
+                </div>
+                <div className="grid-4">
+                  <div>
+                    <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>轻微事件</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#00B894' }}>{healthEventStats.by_severity?.mild || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>中等事件</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#FDCB6E' }}>{healthEventStats.by_severity?.moderate || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>严重事件</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#E17055' }}>{healthEventStats.by_severity?.severe || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>复诊转化率</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#E17055' }}>
+                      {healthEventStats.total > 0 ? Math.round(((healthEventStats.by_status?.need_revisit || 0) / healthEventStats.total) * 100) : 0}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {healthEventTrend.length > 0 && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card-title">📅 近30天健康事件趋势</div>
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={healthEventTrend}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="count" stroke="#E17055" name="事件数" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <div className="grid-2" style={{ marginBottom: 20 }}>
+            {healthEventSeverity && healthEventSeverity.by_severity && (
+              <div className="card">
+                <div className="card-title">⚠️ 严重程度分布</div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={Object.entries(healthEventSeverity.by_severity).map(([k, v]) => ({
+                        name: { mild: '轻微', moderate: '中等', severe: '严重' }[k] || k,
+                        value: v || 0,
+                      })).filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={95}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      <Cell fill="#00B894" />
+                      <Cell fill="#FDCB6E" />
+                      <Cell fill="#E17055" />
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {healthEventStats && healthEventStats.by_type && Object.keys(healthEventStats.by_type).length > 0 && (
+              <div className="card">
+                <div className="card-title">📋 事件类型分布</div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={Object.entries(healthEventStats.by_type).map(([k, v]) => ({
+                        name: { fever: '发热', rash: '皮疹', crying: '异常哭闹', appetite: '食欲变化', sleep: '睡眠异常', doctor_followup: '医生回访', other: '其他' }[k] || k,
+                        value: v || 0,
+                      })).filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={95}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {Object.keys(healthEventStats.by_type).map((_, idx) => (
+                        <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {healthEventRevisitRate && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card-title">🔄 复诊转化率分析</div>
+              <div className="card-body">
+                <div className="grid-2" style={{ marginBottom: 16 }}>
+                  <div className="metric-card" style={{ background: '#FEE2E2' }}>
+                    <div className="metric-value" style={{ color: '#E17055' }}>{healthEventRevisitRate.overall_revisit_rate ? Math.round(healthEventRevisitRate.overall_revisit_rate * 100) : 0}%</div>
+                    <div className="metric-label">总体复诊转化率</div>
+                  </div>
+                  <div className="metric-card">
+                    <div className="metric-value">{healthEventRevisitRate.total_events || 0}</div>
+                    <div className="metric-label">统计事件总数</div>
+                  </div>
+                </div>
+                {healthEventRevisitRate.by_type && Object.keys(healthEventRevisitRate.by_type).length > 0 && (
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 10 }}>各事件类型复诊转化率</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {Object.entries(healthEventRevisitRate.by_type).map(([type, data]) => {
+                        const typeLabels = { fever: '🌡️ 发热', rash: '🔴 皮疹', crying: '😭 异常哭闹', appetite: '🍽️ 食欲变化', sleep: '😴 睡眠异常', doctor_followup: '👨‍⚕️ 医生回访', other: '📋 其他' }
+                        const rate = data.total > 0 ? Math.round((data.need_revisit / data.total) * 100) : 0
+                        const color = rate >= 40 ? '#E17055' : rate >= 20 ? '#FDCB6E' : '#00B894'
+                        return (
+                          <div key={type}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 13 }}>
+                              <span>{typeLabels[type] || type}</span>
+                              <span style={{ fontWeight: 600, color }}>
+                                {data.need_revisit}/{data.total} ({rate}%)
+                              </span>
+                            </div>
+                            <div className="progress-bar-container">
+                              <div className="progress-bar-fill" style={{ width: `${rate}%`, background: color }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {healthEventByAge.length > 0 && (
+            <div className="card">
+              <div className="card-title">👶 不同月龄常见事件占比</div>
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={healthEventByAge}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="age_group" label={{ value: '月龄阶段', position: 'insideBottomRight', offset: -5 }} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="total" fill="#6C5CE7" name="事件总数" />
+                  {['fever', 'rash', 'crying', 'appetite', 'sleep'].filter(type =>
+                    healthEventByAge.some(d => d[type] && d[type] > 0)
+                  ).map((type, idx) => {
+                    const typeLabels = { fever: '发热', rash: '皮疹', crying: '哭闹', appetite: '食欲', sleep: '睡眠' }
+                    return (
+                      <Bar key={type} dataKey={type} fill={COLORS[(idx + 1) % COLORS.length]} name={typeLabels[type]} stackId="a" />
+                    )
+                  })}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
 
       {preparationStats && preparationStats.overview && preparationStats.overview.total_checklists > 0 && (
         <div className="collaboration-stats" style={{ marginTop: 20 }}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { fetchReactions } from '../api';
+import { Link, useNavigate } from 'react-router-dom';
+import { fetchReactions, fetchHealthEvents } from '../api';
 
 const SEVERITY_MAP = {
   mild: { label: '轻微', className: 'badge badge-green' },
@@ -23,6 +23,7 @@ const TIME_SLOT_MAP = {
 };
 
 export default function ReactionList() {
+  const navigate = useNavigate();
   const [reactions, setReactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [severityFilter, setSeverityFilter] = useState('all');
@@ -60,7 +61,12 @@ export default function ReactionList() {
     <div className="page-container">
       <div className="page-header">
         <h1>不良反应记录</h1>
-        <Link to="/reactions/new" className="btn btn-primary">新建记录</Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link to="/health-events" className="btn" style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDCB6E' }}>
+            🩺 健康事件追踪中心
+          </Link>
+          <Link to="/reactions/new" className="btn btn-primary">新建记录</Link>
+        </div>
       </div>
 
       <div className="filter-bar">
@@ -136,6 +142,15 @@ export default function ReactionList() {
                       </div>
                     </div>
                   )}
+                </div>
+                <div className="card-actions">
+                  <button
+                    className="btn btn-sm"
+                    style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDCB6E' }}
+                    onClick={() => navigate(`/health-events/new?appointment_id=${aptInfo.id || ''}&baby_id=${reaction.baby || reaction.baby_id}&severity=${reaction.severity}&symptoms=${encodeURIComponent(reaction.symptoms || '')}&treatment=${encodeURIComponent(reaction.treatment || '')}&doctor_advice=${encodeURIComponent(reaction.doctor_advice || '')}`)}
+                  >
+                    🩺 上报为健康事件
+                  </button>
                 </div>
               </div>
             );

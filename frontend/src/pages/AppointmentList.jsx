@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { fetchAppointments, updateAppointment, markAppointmentReminded, unmarkAppointmentReminded, fetchChecklistByAppointment } from '../api';
 
 const TIME_SLOT_MAP = {
@@ -24,6 +24,7 @@ const STATUS_MAP = {
 };
 
 export default function AppointmentList() {
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -222,6 +223,15 @@ export default function AppointmentList() {
                         <button className="btn btn-sm btn-green" onClick={() => handleToggleRemind(apt.id, false)}>✓ 标记已提醒</button>
                       )}
                     </>
+                  )}
+                  {apt.status === 'completed' && (
+                    <button
+                      className="btn btn-sm"
+                      style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FDCB6E' }}
+                      onClick={() => navigate(`/health-events/new?appointment_id=${apt.id}&baby_id=${apt.baby || apt.baby_id}`)}
+                    >
+                      🩺 记录健康事件
+                    </button>
                   )}
                 </div>
               </div>

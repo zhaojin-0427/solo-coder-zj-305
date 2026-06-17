@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { fetchFamilies, fetchFamilyMembers, fetchAppointments, markAppointmentReminded, unmarkAppointmentReminded, fetchFamilyReminderStats, fetchChecklistSummary } from '../api'
+import { Link } from 'react-router-dom'
+import { fetchFamilies, fetchFamilyMembers, fetchAppointments, markAppointmentReminded, unmarkAppointmentReminded, fetchFamilyReminderStats, fetchChecklistSummary, fetchHealthEvents, fetchHealthEventCollaboration } from '../api'
 
 const RELATION_LABELS = {
   mother: '妈妈',
@@ -43,17 +44,21 @@ export default function Family() {
   const [expandedMember, setExpandedMember] = useState(null)
   const [currentUser, setCurrentUser] = useState('1')
   const [prepSummary, setPrepSummary] = useState(null)
+  const [healthEvents, setHealthEvents] = useState([])
+  const [healthEventCollab, setHealthEventCollab] = useState(null)
 
   useEffect(() => {
     Promise.all([
       fetchFamilies({ page_size: 1000 }),
       fetchFamilyMembers({ page_size: 1000 }),
       fetchAppointments({ page_size: 1000, status: 'pending' }),
+      fetchHealthEvents({ page_size: 1000 }),
     ])
-      .then(([familiesData, membersData, appointmentsData]) => {
+      .then(([familiesData, membersData, appointmentsData, eventsData]) => {
         setFamilies(familiesData)
         setMembers(membersData)
         setAppointments(appointmentsData)
+        setHealthEvents(Array.isArray(eventsData) ? eventsData : [])
         if (familiesData.length > 0) {
           setSelectedFamily(String(familiesData[0].id))
         }
@@ -66,8 +71,19 @@ export default function Family() {
     if (selectedFamily) {
       loadFamilyReminderStats()
       loadPrepSummary()
+      loadHealthEventCollab()
     }
   }, [selectedFamily])
+
+  const loadHealthEventCollab = async () => {
+    if (!selectedFamily) return
+    try {
+      const data = await fetchHealthEventCollaboration(selectedFamily)
+      setHealthEventCollab(data)
+    } catch (err) {
+      console.error('Failed to load health event collaboration stats:', err)
+    }
+  }
 
   const loadPrepSummary = async () => {
     if (!selectedFamily) return
@@ -343,6 +359,12 @@ export default function Family() {
         >
           🔔 待提醒预约 ({pendingAppointments.length})
         </button>
+        <button
+          className={`tab ${activeTab === 'health-events' ? 'active' : ''}`}
+          onClick={() => setActiveTab('health-events')}
+        >
+          🩺 健康事件协同 ({healthEvents.length})
+        </button>
       </div>
 
       {activeTab === 'members' && (
@@ -453,6 +475,155 @@ export default function Family() {
                           </button>
                         )}
                       </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'health-events' && (
+        <div className="tab-content">
+          {healthEventCollab && (
+            <div className="card" style={{ marginBottom: 20, background: 'linear-gradient(135deg, #FEF3C7 0%, #FFFBEB 100%)' }}>
+              <div className="card-title" style={{ color: '#92400E', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>🩺</span>
+                健康事件家庭协同统计
+              </div>
+              <div className="card-body">
+                <div className="grid-4" style={{ marginBottom: 10 }}>
+                  <div className="metric-card yellow">
+                    <div className="metric-value">{healthEventCollab.total_events || 0}</div>
+                    <div className="metric-label">健康事件总数</div>
+                  </div>
+                  <div className="metric-card">
+                    <div className="metric-value">{healthEventCollab.total_created_by_users || 0}</div>
+                    <div className="metric-label">参与记录人数</div>
+                  </div>
+                  <div className="metric-card green">
+                    <div className="metric-value">{healthEventCollab.total_viewed_by_users || 0}</div>
+                    <div className="metric-label">参与查看人数</div>
+                  </div>
+                  <div className="metric-card" style={{ background: '#EDEFFC' }}>
+                    <div className="metric-value" style={{ color: '#6C5CE7' }}>{healthEventCollab.total_followed_by_users || 0}</div>
+                    <div className="metric-label">参与跟进人数</div>
+                  </div>
+                </div>
+                {healthEventCollab.by_user && healthEventCollab.by_user.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>👥 成员参与详情</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {healthEventCollab.by_user.map(userStat => (
+                        <div key={userStat.user_id} className="family-member-reminder-item">
+                          <div className="family-member-reminder-info">
+                            <div className="family-member-reminder-avatar">
+                              {userStat.username?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{userStat.username || '未知用户'}</div>
+                              <div style={{ fontSize: 12, color: '#636E72', marginTop: 2 }}>
+                                ✍️ 记录 {userStat.created_count || 0} 条
+                                {userStat.viewed_count > 0 && ` · 👁️ 查看 ${userStat.viewed_count} 次`}
+                                {userStat.followed_count > 0 && ` · 👤 跟进 ${userStat.followed_count} 条`}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, color: '#636E72' }}>健康事件协同跟进详情</div>
+            <Link to="/health-events" className="btn btn-sm btn-primary">
+              📋 查看全部
+            </Link>
+          </div>
+
+          {healthEvents.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">🩺</div>
+              <p>暂无健康事件记录</p>
+              <Link to="/health-events/new" className="btn btn-primary">
+                记录第一条健康事件
+              </Link>
+            </div>
+          ) : (
+            <div className="card-list">
+              {healthEvents.map(event => {
+                const typeIcons = { fever: '🌡️', rash: '🔴', crying: '😭', appetite: '🍽️', sleep: '😴', doctor_followup: '👨‍⚕️', other: '📋' }
+                const typeLabels = { fever: '发热', rash: '皮疹', crying: '异常哭闹', appetite: '食欲变化', sleep: '睡眠异常', doctor_followup: '医生回访建议', other: '其他' }
+                const statusColors = { observing: '#FDCB6E', need_revisit: '#E17055', relieved: '#00B894', archived: '#636E72' }
+                const statusBgs = { observing: '#FEF3C7', need_revisit: '#FEE2E2', relieved: '#D1FAE5', archived: '#DFE6E9' }
+                const statusLabels = { observing: '观察中', need_revisit: '需复诊', relieved: '已缓解', archived: '已归档' }
+                const severityClasses = { mild: 'badge badge-green', moderate: 'badge badge-orange', severe: 'badge badge-red' }
+                const severityLabels = { mild: '轻微', moderate: '中等', severe: '严重' }
+
+                return (
+                  <div key={event.id} className="card">
+                    <div className="card-header">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 20 }}>{typeIcons[event.event_type] || '📋'}</span>
+                        <div>
+                          <div className="card-title">
+                            {event.baby_name} - {typeLabels[event.event_type] || event.event_type}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#636E72' }}>
+                            {event.occurrence_time?.replace('T', ' ')}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <span className={severityClasses[event.severity] || 'badge'}>{severityLabels[event.severity] || event.severity}</span>
+                        <span style={{
+                          padding: '2px 10px',
+                          borderRadius: 10,
+                          fontSize: 12,
+                          background: statusBgs[event.status] || '#DFE6E9',
+                          color: statusColors[event.status] || '#636E72',
+                          fontWeight: 600,
+                        }}>
+                          {statusLabels[event.status] || event.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="card-body">
+                      <div className="card-row">
+                        <span className="card-label">症状</span>
+                        <span className="card-value">{event.symptoms}</span>
+                      </div>
+                      <div className="card-row">
+                        <span className="card-label">✍️ 记录人</span>
+                        <span className="card-value">
+                          {event.created_by_name || '未知'}
+                          {event.created_at && ` · ${event.created_at?.replace('T', ' ')}`}
+                        </span>
+                      </div>
+                      <div className="card-row">
+                        <span className="card-label">👤 跟进人</span>
+                        <span className="card-value" style={{ color: event.followed_by_name ? '#6C5CE7' : '#636E72', fontWeight: event.followed_by_name ? 600 : 400 }}>
+                          {event.followed_by_name || '⚠️ 尚未分配跟进人'}
+                        </span>
+                      </div>
+                      <div className="card-row">
+                        <span className="card-label">👁️ 已查看</span>
+                        <span className="card-value">
+                          {event.viewers_count > 0
+                            ? `${event.viewers_count} 人已查看`
+                            : '⚠️ 暂无成员查看'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="card-actions">
+                      <Link to={`/health-events/${event.id}`} className="btn btn-sm btn-primary">
+                        📋 查看/跟进
+                      </Link>
                     </div>
                   </div>
                 )
