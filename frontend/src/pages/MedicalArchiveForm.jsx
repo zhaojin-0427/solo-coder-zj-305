@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import {
   createMedicalArchive, updateMedicalArchive, fetchMedicalArchive,
   fetchBabies, fetchArchiveTags, fetchAppointments, fetchHealthEvents,
@@ -38,8 +38,10 @@ function useQuery() {
 export default function MedicalArchiveForm() {
   const navigate = useNavigate()
   const query = useQuery()
-  const isEdit = query.get('edit') === 'true'
+  const { id } = useParams()
+  const isEdit = !!id
   const [loading, setLoading] = useState(false)
+  const [detailLoading, setDetailLoading] = useState(false)
   const [babies, setBabies] = useState([])
   const [tags, setTags] = useState([])
   const [appointments, setAppointments] = useState([])
@@ -75,12 +77,50 @@ export default function MedicalArchiveForm() {
   }, [])
 
   useEffect(() => {
+    if (isEdit && id) {
+      setDetailLoading(true)
+      fetchMedicalArchive(id)
+        .then(data => {
+          if (data) {
+            setForm({
+              baby: data.baby_id || data.baby?.id || '',
+              title: data.title || '',
+              archive_type: data.archive_type || 'other',
+              event_date: data.event_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+              description: data.description || '',
+              doctor_name: data.doctor_name || '',
+              hospital: data.hospital || '',
+              file_url: data.file_url || '',
+              file_name: data.file_name || '',
+              appointment_id: data.appointment_id || data.appointment?.id || '',
+              health_event_id: data.health_event_id || data.health_event?.id || '',
+              reaction_id: data.reaction_id || data.reaction?.id || '',
+              status: data.status || 'draft',
+              expiry_date: data.expiry_date?.split('T')[0] || '',
+              view_permission: data.view_permission || 'family_all',
+              tag_ids: data.tag_ids || data.tags?.map(t => t.id) || [],
+              remarks: data.remarks || '',
+            })
+          }
+        })
+        .catch(err => {
+          console.error('Failed to load archive detail:', err)
+          alert('加载资料详情失败')
+        })
+        .finally(() => setDetailLoading(false))
+    }
+  }, [isEdit, id])
+
+  useEffect(() => {
     if (form.baby) {
       fetchAppointments({ baby_id: form.baby, page_size: 1000 })
         .then(a => setAppointments(Array.isArray(a) ? a : a.results || []))
         .catch(() => {})
       fetchHealthEvents({ baby_id: form.baby, page_size: 1000 })
         .then(h => setHealthEvents(Array.isArray(h) ? h : h.results || []))
+        .catch(() => {})
+      fetchReactions({ baby_id: form.baby, page_size: 1000 })
+        .then(r => setReactions(Array.isArray(r) ? r : r.results || []))
         .catch(() => {})
     }
   }, [form.baby])
@@ -113,8 +153,8 @@ export default function MedicalArchiveForm() {
       if (!payload.expiry_date) delete payload.expiry_date
       if (payload.tag_ids.length === 0) delete payload.tag_ids
 
-      if (isEdit && query.get('id')) {
-        await updateMedicalArchive(query.get('id'), payload)
+      if (isEdit && id) {
+        await updateMedicalArchive(id, payload)
       } else {
         await createMedicalArchive(payload)
       }
