@@ -11,6 +11,7 @@ from appointments.views import AppointmentViewSet
 from checkups.views import CheckupViewSet, CheckupRecordViewSet
 from reactions.views import ReactionViewSet
 from health_events.views import HealthEventViewSet
+from medical_archives.views import MedicalArchiveViewSet, ArchiveTagViewSet
 
 router = DefaultRouter()
 router.register(r'babies', BabyViewSet, basename='baby')
@@ -21,6 +22,8 @@ router.register(r'checkups', CheckupViewSet, basename='checkup')
 router.register(r'checkup-records', CheckupRecordViewSet, basename='checkup-record')
 router.register(r'reactions', ReactionViewSet, basename='reaction')
 router.register(r'health-events', HealthEventViewSet, basename='health-event')
+router.register(r'medical-archives', MedicalArchiveViewSet, basename='medical-archive')
+router.register(r'archive-tags', ArchiveTagViewSet, basename='archive-tag')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

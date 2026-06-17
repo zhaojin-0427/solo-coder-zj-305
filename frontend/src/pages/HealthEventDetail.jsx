@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   fetchHealthEvent, addHealthEventUpdate,
   markHealthEventViewed, changeHealthEventStatus,
   assignHealthEventFollower, fetchFamilyMembers,
+  fetchMedicalArchives,
 } from '../api'
 
 const EVENT_TYPE_MAP = {
@@ -39,6 +40,7 @@ export default function HealthEventDetail() {
   const [submittingUpdate, setSubmittingUpdate] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [familyMembers, setFamilyMembers] = useState([])
+  const [archives, setArchives] = useState([])
 
   useEffect(() => {
     loadEvent()
@@ -52,6 +54,8 @@ export default function HealthEventDetail() {
       setLoading(true)
       const data = await fetchHealthEvent(id)
       setEvent(data)
+      const archiveData = await fetchMedicalArchives({ health_event_id: id, page_size: 1000 })
+      setArchives(Array.isArray(archiveData) ? archiveData : archiveData.results || [])
     } catch (err) {
       console.error('Failed to fetch event:', err)
     } finally {
@@ -158,6 +162,12 @@ export default function HealthEventDetail() {
           }}>
             {statusInfo.label}
           </span>
+          <Link
+            to={`/medical-archives/new?health_event_id=${id}&baby_id=${event.baby}`}
+            className="btn btn-sm btn-primary"
+          >
+            📂 上传资料 {archives.length > 0 ? `(${archives.length})` : ''}
+          </Link>
         </div>
       </div>
 
@@ -442,6 +452,54 @@ export default function HealthEventDetail() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>📂 关联资料归档</span>
+              <Link to={`/medical-archives?health_event_id=${id}`} style={{ fontSize: 12 }}>
+                查看全部 →
+              </Link>
+            </div>
+            <div className="card-body">
+              {archives.length === 0 ? (
+                <div style={{ fontSize: 13, color: '#B2BEC3' }}>暂无关联资料</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {archives.slice(0, 5).map(a => (
+                    <Link
+                      key={a.id}
+                      to={`/medical-archives/${a.id}`}
+                      style={{
+                        padding: '8px 12px',
+                        background: '#F8F9FD',
+                        borderRadius: 6,
+                        fontSize: 13,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        textDecoration: 'none',
+                        color: 'inherit',
+                      }}
+                    >
+                      <span>
+                        {a.archive_type_label} · {a.title}
+                      </span>
+                      <span style={{ color: '#636E72', fontSize: 11 }}>
+                        {a.event_date}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+              <Link
+                to={`/medical-archives/new?health_event_id=${id}&baby_id=${event.baby}`}
+                className="btn btn-sm btn-primary"
+                style={{ marginTop: 12, width: '100%' }}
+              >
+                ➕ 上传关联资料
+              </Link>
             </div>
           </div>
 

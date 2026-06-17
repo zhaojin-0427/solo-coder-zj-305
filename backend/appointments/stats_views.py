@@ -872,3 +872,322 @@ class HealthEventCollaborationView(APIView):
             },
             'member_stats': sorted(member_stats, key=lambda x: -(x['created_count'] + x['followed_count'] + x['viewed_count'])),
         })
+
+
+from medical_archives.models import MedicalArchive, ArchiveView, ArchiveTag
+from accounts.models import FamilyMember
+
+
+class MedicalArchiveStatsView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+
+        archives_qs = MedicalArchive.objects.select_related(
+            'baby', 'family', 'created_by', 'handled_by'
+        ).prefetch_related('views', 'tags', 'allowed_viewers')
+
+        if baby_id:
+            archives_qs = archives_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            archives_qs = archives_qs.filter(baby_id__in=list(baby_ids))
+
+        total = archives_qs.count()
+        by_type = {}
+        by_status = {}
+        by_source = {}
+
+        type_choices = dict(MedicalArchive.ARCHIVE_TYPE_CHOICES)
+        status_choices = dict(MedicalArchive.STATUS_CHOICES)
+        source_choices = dict(MedicalArchive.SOURCE_TYPE_CHOICES)
+
+        for archive in archives_qs:
+            t = archive.archive_type
+            s = archive.status
+            src = archive.source_type
+            by_type[t] = by_type.get(t, 0) + 1
+            by_status[s] = by_status.get(s, 0) + 1
+            by_source[src] = by_source.get(src, 0) + 1
+
+        by_type_list = [
+            {'archive_type': k, 'archive_type_label': type_choices.get(k, k), 'count': v}
+            for k, v in sorted(by_type.items(), key=lambda x: -x[1])
+        ]
+        by_status_list = [
+            {'status': k, 'status_label': status_choices.get(k, k), 'count': v}
+            for k, v in sorted(by_status.items(), key=lambda x: -x[1])
+        ]
+        by_source_list = [
+            {'source_type': k, 'source_type_label': source_choices.get(k, k), 'count': v}
+            for k, v in sorted(by_source.items(), key=lambda x: -x[1])
+        ]
+
+        with_file = archives_qs.exclude(file_url='').count()
+        with_expiry = archives_qs.filter(expiry_date__isnull=False).count()
+        expiring_soon = 0
+        today = date.today()
+        from datetime import timedelta
+        for a in archives_qs:
+            if a.expiry_date and today <= a.expiry_date <= today + timedelta(days=30):
+                expiring_soon += 1
+
+        total_views = ArchiveView.objects.filter(archive__in=archives_qs).count()
+
+        tag_stats = []
+        for tag in ArchiveTag.objects.all():
+            cnt = tag.archives.filter(pk__in=archives_qs).count()
+            if cnt > 0:
+                tag_stats.append({
+                    'tag_id': tag.id,
+                    'tag_name': tag.name,
+                    'tag_color': tag.color,
+                    'count': cnt,
+                })
+        tag_stats = sorted(tag_stats, key=lambda x: -x['count'])
+
+        overview = {
+            'total_archives': total,
+            'with_file': with_file,
+            'with_expiry_date': with_expiry,
+            'expiring_in_30_days': expiring_soon,
+            'total_views': total_views,
+            'avg_views_per_archive': round(total_views / max(total, 1), 2),
+            'draft': by_status.get('draft', 0),
+            'pending_review': by_status.get('pending_review', 0),
+            'approved': by_status.get('approved', 0),
+            'needs_action': by_status.get('needs_action', 0),
+            'expired': by_status.get('expired', 0),
+            'archived_obsolete': by_status.get('archived_obsolete', 0),
+            'with_appointment': archives_qs.filter(appointment__isnull=False).count(),
+            'with_health_event': archives_qs.filter(health_event__isnull=False).count(),
+        }
+
+        by_type_list_v2 = [
+            {
+                'archive_type': item['archive_type'],
+                'type_label': item['archive_type_label'],
+                'count': item['count'],
+            } for item in by_type_list
+        ]
+        by_source_list_v2 = [
+            {
+                'source': item['source_type'],
+                'source_label': item['source_type_label'],
+                'count': item['count'],
+            } for item in by_source_list
+        ]
+
+        return Response({
+            'overview': overview,
+            'by_type': by_type_list_v2,
+            'by_status': by_status_list,
+            'by_source': by_source_list_v2,
+            'by_tag': tag_stats,
+        })
+
+
+class MedicalArchiveByAgeView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+
+        archives_qs = MedicalArchive.objects.select_related('baby')
+
+        if baby_id:
+            archives_qs = archives_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            archives_qs = archives_qs.filter(baby_id__in=list(baby_ids))
+
+        age_stage_data = {}
+        type_choices = dict(MedicalArchive.ARCHIVE_TYPE_CHOICES)
+
+        for stage_name, min_month, max_month in AGE_STAGES:
+            stage_archives = []
+            for archive in archives_qs:
+                age_months = archive.get_age_months_at_event()
+                if age_months is not None and min_month <= age_months < max_month:
+                    stage_archives.append(archive)
+
+            stage_total = len(stage_archives)
+            type_counts = {}
+            for t_key in type_choices.keys():
+                type_counts[t_key] = sum(1 for a in stage_archives if a.archive_type == t_key)
+
+            age_stage_data[stage_name] = {
+                'total': stage_total,
+                'by_type': {
+                    t_key: {
+                        'archive_type_label': type_choices[t_key],
+                        'count': type_counts[t_key],
+                        'rate': round(type_counts[t_key] / max(stage_total, 1), 4) if stage_total > 0 else 0,
+                        'rate_percent': round(type_counts[t_key] / max(stage_total, 1) * 100, 2) if stage_total > 0 else 0,
+                    }
+                    for t_key in type_choices.keys()
+                },
+            }
+
+        return Response(age_stage_data)
+
+
+class MedicalArchiveMonthlyTrendView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        baby_id = request.query_params.get('baby_id')
+        family_id = request.query_params.get('family_id')
+        months = int(request.query_params.get('months', 12))
+
+        archives_qs = MedicalArchive.objects.select_related('baby')
+
+        if baby_id:
+            archives_qs = archives_qs.filter(baby_id=baby_id)
+        elif family_id:
+            baby_ids = Baby.objects.filter(family_id=family_id).values_list('pk', flat=True)
+            archives_qs = archives_qs.filter(baby_id__in=list(baby_ids))
+
+        today = date.today()
+        month_data = {}
+        for i in range(months):
+            d = today - timedelta(days=i * 30)
+            month_key = f'{d.year}-{d.month:02d}'
+            month_data[month_key] = {'total': 0, 'by_type': {}}
+
+        type_choices = dict(MedicalArchive.ARCHIVE_TYPE_CHOICES)
+        for t_key in type_choices.keys():
+            for mk in month_data.keys():
+                month_data[mk]['by_type'][t_key] = 0
+
+        for archive in archives_qs:
+            mk = archive.get_event_month_key()
+            if mk and mk in month_data:
+                month_data[mk]['total'] += 1
+                if archive.archive_type in month_data[mk]['by_type']:
+                    month_data[mk]['by_type'][archive.archive_type] += 1
+
+        result = []
+        for mk in sorted(month_data.keys()):
+            year, month = mk.split('-')
+            result.append({
+                'month_key': mk,
+                'month_label': f'{year}年{int(month)}月',
+                'total': month_data[mk]['total'],
+                'by_type': [
+                    {
+                        'archive_type': k,
+                        'archive_type_label': type_choices.get(k, k),
+                        'count': v,
+                    }
+                    for k, v in month_data[mk]['by_type'].items()
+                ],
+            })
+
+        return Response(result)
+
+
+class MedicalArchiveFamilyCoverageView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        family_id = request.query_params.get('family_id')
+        baby_id = request.query_params.get('baby_id')
+
+        if not family_id and not baby_id:
+            families = Family.objects.all()
+        elif family_id:
+            families = Family.objects.filter(pk=family_id)
+        else:
+            baby = Baby.objects.filter(pk=baby_id).first()
+            families = Family.objects.filter(pk=baby.family_id) if baby and baby.family_id else Family.objects.none()
+
+        result = []
+        for family in families:
+            members = FamilyMember.objects.filter(family=family).select_related('user', 'user__profile')
+            babies_in_family = Baby.objects.filter(family=family)
+            archives_in_family = MedicalArchive.objects.filter(baby__in=babies_in_family)
+
+            total_archives = archives_in_family.count()
+            total_members = members.count()
+
+            viewed_user_ids = ArchiveView.objects.filter(
+                archive__in=archives_in_family
+            ).values_list('viewer_id', flat=True).distinct()
+            viewed_set = set(viewed_user_ids)
+
+            member_data = []
+            for member in members:
+                user = member.user
+                viewed_count = ArchiveView.objects.filter(
+                    archive__in=archives_in_family,
+                    viewer=user,
+                ).count()
+                created_count = archives_in_family.filter(created_by=user).count()
+                handled_count = archives_in_family.filter(handled_by=user).count()
+
+                recent_views = ArchiveView.objects.filter(
+                    archive__in=archives_in_family,
+                    viewer=user,
+                ).select_related('archive').order_by('-viewed_at')[:5]
+
+                member_data.append({
+                    'member_id': member.id,
+                    'user_id': user.id,
+                    'username': user.username,
+                    'role': member.role,
+                    'role_label': member.get_role_display(),
+                    'relation': user.profile.relation_with_baby if hasattr(user, 'profile') else None,
+                    'relation_label': user.profile.get_relation_with_baby_display() if hasattr(user, 'profile') else None,
+                    'viewed_count': viewed_count,
+                    'created_count': created_count,
+                    'handled_count': handled_count,
+                    'has_viewed': viewed_count > 0,
+                    'recent_views': [
+                        {
+                            'archive_id': v.archive.id,
+                            'archive_title': v.archive.title,
+                            'viewed_at': str(v.viewed_at),
+                        } for v in recent_views
+                    ],
+                    'joined_at': str(member.joined_at) if member.joined_at else None,
+                })
+
+            viewed_members_count = sum(1 for m in member_data if m['has_viewed'])
+
+            result.append({
+                'family_id': family.id,
+                'family_name': family.name,
+                'total_members': total_members,
+                'total_archives': total_archives,
+                'viewed_members': viewed_members_count,
+                'viewed_members_count': viewed_members_count,
+                'not_viewed_members_count': total_members - viewed_members_count,
+                'view_coverage_rate': round(viewed_members_count / max(total_members, 1), 4),
+                'view_coverage_percent': round(viewed_members_count / max(total_members, 1) * 100, 2),
+                'members': member_data,
+            })
+
+        total_families = len(result)
+        active_families = sum(1 for f in result if f['total_archives'] > 0)
+        inactive_families = total_families - active_families
+        overall_viewed = sum(f['viewed_members'] for f in result)
+        overall_members = sum(f['total_members'] for f in result)
+        coverage_percent = round(overall_viewed / max(overall_members, 1), 4)
+
+        overview = {
+            'total_families': total_families,
+            'active_families': active_families,
+            'inactive_families': inactive_families,
+            'coverage_percent': coverage_percent,
+            'total_members': overall_members,
+            'viewed_members': overall_viewed,
+        }
+
+        return Response({
+            'overview': overview,
+            'by_family': result,
+        })

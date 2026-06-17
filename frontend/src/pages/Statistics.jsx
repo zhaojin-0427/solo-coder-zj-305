@@ -9,6 +9,7 @@ import {
   fetchCollaborationStats, fetchFamilies, fetchPreparationStats,
   fetchHealthEventStats, fetchHealthEventTrend, fetchHealthEventSeverity,
   fetchHealthEventRevisitRate, fetchHealthEventByAge,
+  fetchArchiveStats, fetchArchiveByAge, fetchArchiveMonthlyTrend, fetchArchiveFamilyCoverage,
 } from '../api'
 
 const COLORS = ['#6C5CE7', '#00B894', '#FDCB6E', '#E17055', '#74B9FF', '#A29BFE', '#FD79A8']
@@ -35,6 +36,11 @@ export default function Statistics() {
   const [healthEventRevisitRate, setHealthEventRevisitRate] = useState(null)
   const [healthEventByAge, setHealthEventByAge] = useState([])
   const [healthEventLoading, setHealthEventLoading] = useState(false)
+  const [archiveStats, setArchiveStats] = useState(null)
+  const [archiveByAge, setArchiveByAge] = useState([])
+  const [archiveMonthlyTrend, setArchiveMonthlyTrend] = useState([])
+  const [archiveFamilyCoverage, setArchiveFamilyCoverage] = useState(null)
+  const [archiveLoading, setArchiveLoading] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -81,6 +87,7 @@ export default function Statistics() {
     loadCollaborationStats()
     loadPreparationStats()
     loadHealthEventStats()
+    loadArchiveStats()
   }, [selectedBaby, selectedFamily, filterType])
 
   const loadHealthEventStats = async () => {
@@ -145,6 +152,37 @@ export default function Statistics() {
       setCollaborationStats(null)
     } finally {
       setCollabLoading(false)
+    }
+  }
+
+  const loadArchiveStats = async () => {
+    setArchiveLoading(true)
+    try {
+      const babyId = filterType === 'baby' && selectedBaby ? selectedBaby : null
+      const familyId = filterType === 'family' && selectedFamily ? selectedFamily : null
+
+      const [overview, byAge, trend, coverage] = await Promise.all([
+        fetchArchiveStats(babyId, familyId).catch(() => null),
+        fetchArchiveByAge(babyId, familyId).catch(() => []),
+        fetchArchiveMonthlyTrend(babyId, familyId, 12).catch(() => []),
+        fetchArchiveFamilyCoverage(babyId, familyId).catch(() => null),
+      ])
+
+      setArchiveStats(overview)
+      setArchiveFamilyCoverage(coverage)
+
+      const ageArray = byAge && typeof byAge === 'object' && !Array.isArray(byAge)
+        ? Object.entries(byAge).map(([ageGroup, data]) => ({
+            age_group: ageGroup,
+            total: data.total || 0,
+          }))
+        : []
+      setArchiveByAge(ageArray)
+      setArchiveMonthlyTrend(Array.isArray(trend) ? trend : [])
+    } catch (err) {
+      console.error('Failed to load archive stats:', err)
+    } finally {
+      setArchiveLoading(false)
     }
   }
 
@@ -389,7 +427,7 @@ export default function Statistics() {
           </select>
         </div>
       )}
-      <button className="btn btn-sm btn-secondary" onClick={() => { loadCollaborationStats(); loadPreparationStats(); loadHealthEventStats(); }}>
+      <button className="btn btn-sm btn-secondary" onClick={() => { loadCollaborationStats(); loadPreparationStats(); loadHealthEventStats(); loadArchiveStats(); }}>
         🔄 刷新
       </button>
     </div>
@@ -886,6 +924,207 @@ export default function Statistics() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(archiveStats || archiveByAge.length > 0 || archiveMonthlyTrend.length > 0 || archiveFamilyCoverage) && !archiveLoading && (
+        <div className="collaboration-stats" style={{ marginTop: 20 }}>
+          <div className="page-header" style={{ marginBottom: 20 }}>
+            <div>
+              <h2 style={{ fontSize: 20 }}>📂 宝宝就诊资料归档统计</h2>
+              <p style={{ fontSize: 14, color: '#636E72' }}>
+                资料归档数量、类型分布、月龄归档趋势与家庭查看覆盖率
+              </p>
+            </div>
+          </div>
+
+          {archiveStats && archiveStats.overview && archiveStats.overview.total_archives > 0 && (
+            <div className="card" style={{ marginBottom: 20, background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)' }}>
+              <div className="card-title" style={{ color: '#065F46' }}>📈 归档概览</div>
+              <div className="card-body">
+                <div className="grid-4" style={{ marginBottom: 16 }}>
+                  <div className="metric-card green">
+                    <div className="metric-value">{archiveStats.overview.total_archives || 0}</div>
+                    <div className="metric-label">归档资料总数</div>
+                  </div>
+                  <div className="metric-card">
+                    <div className="metric-value" style={{ color: '#6C5CE7' }}>{archiveStats.overview.approved || 0}</div>
+                    <div className="metric-label">已归档</div>
+                  </div>
+                  <div className="metric-card yellow">
+                    <div className="metric-value">{archiveStats.overview.pending_review || 0}</div>
+                    <div className="metric-label">待审核</div>
+                  </div>
+                  <div className="metric-card" style={{ background: '#FEE2E2' }}>
+                    <div className="metric-value" style={{ color: '#E17055' }}>{archiveStats.overview.expired || 0}</div>
+                    <div className="metric-label">已过期</div>
+                  </div>
+                </div>
+                <div className="grid-4">
+                  <div>
+                    <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>草稿</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#B2BEC3' }}>{archiveStats.overview.draft || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>待处理</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#FDCB6E' }}>{archiveStats.overview.needs_action || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>关联预约</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#74B9FF' }}>{archiveStats.overview.with_appointment || 0}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, color: '#636E72', marginBottom: 4 }}>关联健康事件</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#FD79A8' }}>{archiveStats.overview.with_health_event || 0}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid-2" style={{ marginBottom: 20 }}>
+            {archiveStats?.by_type && archiveStats.by_type.length > 0 && (
+              <div className="card">
+                <div className="card-title">📋 资料类型分布</div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={archiveStats.by_type
+                        .map((item, idx) => ({
+                          name: item.type_label || item.archive_type,
+                          value: item.count || 0,
+                        }))
+                        .filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={95}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {archiveStats.by_type.map((_, idx) => (
+                        <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {archiveStats?.by_source && archiveStats.by_source.length > 0 && (
+              <div className="card">
+                <div className="card-title">📥 资料来源分布</div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={archiveStats.by_source
+                        .map((item, idx) => ({
+                          name: item.source_label || item.source,
+                          value: item.count || 0,
+                        }))
+                        .filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={95}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {archiveStats.by_source.map((_, idx) => (
+                        <Cell key={idx} fill={COLORS[(idx + 2) % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          {archiveMonthlyTrend.length > 0 && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card-title">📅 近12个月归档趋势</div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={archiveMonthlyTrend}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="count" fill="#00B894" name="归档数量" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {archiveByAge.length > 0 && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card-title">👶 按月龄段归档分布</div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={archiveByAge}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="age_group" label={{ value: '月龄阶段', position: 'insideBottomRight', offset: -5 }} />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="total" fill="#6C5CE7" name="归档数量" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {archiveFamilyCoverage && archiveFamilyCoverage.overview && (
+            <div className="card">
+              <div className="card-title">👨‍👩‍👧 家庭查看覆盖率</div>
+              <div className="card-body">
+                <div className="grid-4" style={{ marginBottom: 16 }}>
+                  <div className="metric-card green">
+                    <div className="metric-value">{archiveFamilyCoverage.overview.coverage_percent ? Math.round(archiveFamilyCoverage.overview.coverage_percent * 100) : 0}%</div>
+                    <div className="metric-label">家庭查看覆盖率</div>
+                  </div>
+                  <div className="metric-card">
+                    <div className="metric-value" style={{ color: '#6C5CE7' }}>{archiveFamilyCoverage.overview.total_families || 0}</div>
+                    <div className="metric-label">家庭总数</div>
+                  </div>
+                  <div className="metric-card yellow">
+                    <div className="metric-value">{archiveFamilyCoverage.overview.active_families || 0}</div>
+                    <div className="metric-label">活跃家庭</div>
+                  </div>
+                  <div className="metric-card" style={{ background: '#FEE2E2' }}>
+                    <div className="metric-value" style={{ color: '#E17055' }}>{archiveFamilyCoverage.overview.inactive_families || 0}</div>
+                    <div className="metric-label">未查看家庭</div>
+                  </div>
+                </div>
+                {archiveFamilyCoverage.by_family && archiveFamilyCoverage.by_family.length > 0 && (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>家庭</th>
+                        <th>成员数</th>
+                        <th>已查看成员</th>
+                        <th>查看覆盖率</th>
+                        <th>归档数量</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {archiveFamilyCoverage.by_family.slice(0, 10).map((f, idx) => {
+                        const rate = f.total_members > 0 ? Math.round((f.viewed_members / f.total_members) * 100) : 0
+                        const color = rate >= 80 ? '#00B894' : rate >= 50 ? '#FDCB6E' : '#E17055'
+                        return (
+                          <tr key={idx}>
+                            <td>{f.family_name || '—'}</td>
+                            <td>{f.total_members || 0}</td>
+                            <td>{f.viewed_members || 0}</td>
+                            <td style={{ color, fontWeight: 600 }}>{rate}%</td>
+                            <td>{f.total_archives || 0}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           )}
         </div>

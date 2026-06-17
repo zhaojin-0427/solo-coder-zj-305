@@ -16,4 +16,8 @@ urlpatterns = [
     path('health-events/revisit-rate/', stats_views.HealthEventRevisitRateView.as_view(), name='stats-health-events-revisit-rate'),
     path('health-events/by-age/', stats_views.HealthEventByAgeView.as_view(), name='stats-health-events-by-age'),
     path('health-events/collaboration/', stats_views.HealthEventCollaborationView.as_view(), name='stats-health-events-collaboration'),
+    path('medical-archives/', stats_views.MedicalArchiveStatsView.as_view(), name='stats-medical-archives'),
+    path('medical-archives/by-age/', stats_views.MedicalArchiveByAgeView.as_view(), name='stats-medical-archives-by-age'),
+    path('medical-archives/monthly-trend/', stats_views.MedicalArchiveMonthlyTrendView.as_view(), name='stats-medical-archives-monthly-trend'),
+    path('medical-archives/family-coverage/', stats_views.MedicalArchiveFamilyCoverageView.as_view(), name='stats-medical-archives-family-coverage'),
 ]

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
-import { fetchBaby, fetchSchedules, markScheduleCompleted, fetchCheckupRecords, generateSchedule, fetchTaskFlow, fetchChecklistByBaby, fetchHealthEvents } from '../api'
+import { fetchBaby, fetchSchedules, markScheduleCompleted, fetchCheckupRecords, generateSchedule, fetchTaskFlow, fetchChecklistByBaby, fetchHealthEvents, fetchMedicalArchives } from '../api'
 
 const STATUS_CONFIG = {
   pending: { label: '待接种', className: 'badge badge-warning' },
@@ -36,6 +36,7 @@ export default function BabyDetail() {
   const [taskFlowLoading, setTaskFlowLoading] = useState(false)
   const [prepChecklists, setPrepChecklists] = useState([])
   const [healthEvents, setHealthEvents] = useState([])
+  const [medicalArchives, setMedicalArchives] = useState([])
 
   useEffect(() => {
     Promise.all([
@@ -57,6 +58,10 @@ export default function BabyDetail() {
 
     fetchHealthEvents({ baby_id: id, page_size: 1000 })
       .then(data => setHealthEvents(Array.isArray(data) ? data : []))
+      .catch(() => {})
+
+    fetchMedicalArchives({ baby_id: id, page_size: 1000 })
+      .then(data => setMedicalArchives(Array.isArray(data) ? data : data.results || []))
       .catch(() => {})
   }, [id])
 
@@ -461,6 +466,12 @@ export default function BabyDetail() {
         >
           🩺 健康事件 {healthEvents.length > 0 ? `(${healthEvents.length})` : ''}
         </button>
+        <button
+          className={`tab ${activeTab === 'archives' ? 'active' : ''}`}
+          onClick={() => handleTabChange('archives')}
+        >
+          📂 资料归档 {medicalArchives.length > 0 ? `(${medicalArchives.length})` : ''}
+        </button>
       </div>
 
       {activeTab === 'taskflow' && renderTaskFlow()}
@@ -733,6 +744,116 @@ export default function BabyDetail() {
                     </div>
                     <div className="card-actions">
                       <Link to={`/health-events/${event.id}`} className="btn btn-sm btn-primary">
+                        👁️ 查看详情
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'archives' && (
+        <div className="tab-content">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, color: '#636E72' }}>
+              共 {medicalArchives.length} 份就诊资料
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Link to={`/medical-archives?baby_id=${id}`} className="btn btn-sm btn-secondary">
+                📂 查看全部
+              </Link>
+              <Link to={`/medical-archives/new?baby_id=${id}`} className="btn btn-sm btn-primary">
+                ➕ 上传资料
+              </Link>
+            </div>
+          </div>
+
+          {medicalArchives.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📂</div>
+              <p>暂无就诊资料归档</p>
+              <Link to={`/medical-archives/new?baby_id=${id}`} className="btn btn-primary">
+                上传第一份资料
+              </Link>
+            </div>
+          ) : (
+            <div className="card-list">
+              {medicalArchives.map(archive => {
+                const typeIcons = {
+                  vaccine_certificate: '💉', checkup_report: '🩺', lab_result: '🧪',
+                  doctor_advice: '💬', revisit_note: '📋', photo: '📷',
+                  preparation_doc: '🏥', reaction_record: '💊', other: '📄',
+                }
+                const statusColors = {
+                  draft: '#636E72', pending_review: '#FDCB6E', approved: '#00B894',
+                  needs_action: '#E17055', expired: '#6C5CE7', archived_obsolete: '#B2BEC3',
+                }
+                const statusBgs = {
+                  draft: '#DFE6E9', pending_review: '#FEF3C7', approved: '#D1FAE5',
+                  needs_action: '#FEE2E2', expired: '#EDEFFC', archived_obsolete: '#F1F2F6',
+                }
+
+                return (
+                  <div key={archive.id} className="card" style={{ borderLeft: `4px solid ${statusColors[archive.status] || '#6C5CE7'}` }}>
+                    <div className="card-header">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 20 }}>{typeIcons[archive.archive_type] || '📄'}</span>
+                        <div>
+                          <div className="card-title">{archive.title}</div>
+                          <div style={{ fontSize: 12, color: '#636E72' }}>
+                            {archive.event_date}
+                            {archive.age_months_at_event !== null && archive.age_months_at_event !== undefined && (
+                              <span style={{ marginLeft: 8 }}>({archive.age_months_at_event}月龄)</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <span style={{
+                          padding: '2px 10px',
+                          borderRadius: 10,
+                          fontSize: 12,
+                          background: statusBgs[archive.status] || '#DFE6E9',
+                          color: statusColors[archive.status] || '#636E72',
+                          fontWeight: 600,
+                        }}>
+                          {archive.status_label}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="card-body">
+                      <div className="card-row">
+                        <span className="card-label">类型</span>
+                        <span className="card-value">{archive.archive_type_label}</span>
+                      </div>
+                      <div className="card-row">
+                        <span className="card-label">来源</span>
+                        <span className="card-value">{archive.source_type_label}</span>
+                      </div>
+                      {archive.description && (
+                        <div className="card-row">
+                          <span className="card-label">描述</span>
+                          <span className="card-value">{archive.description}</span>
+                        </div>
+                      )}
+                      {archive.hospital && (
+                        <div className="card-row">
+                          <span className="card-label">医院</span>
+                          <span className="card-value">🏥 {archive.hospital}</span>
+                        </div>
+                      )}
+                      {archive.file_url && (
+                        <div className="card-row">
+                          <span className="card-label">附件</span>
+                          <span className="card-value">📎 有附件</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="card-actions">
+                      <Link to={`/medical-archives/${archive.id}`} className="btn btn-sm btn-primary">
                         👁️ 查看详情
                       </Link>
                     </div>

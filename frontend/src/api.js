@@ -201,4 +201,57 @@ export const fetchHealthEventCollaboration = (babyId, familyId) => {
   return api.get('stats/health-events/collaboration/', { params })
 }
 
+export const fetchMedicalArchives = (params) => api.get('medical-archives/', { params })
+export const fetchMedicalArchive = (id) => api.get(`medical-archives/${id}/`)
+export const createMedicalArchive = (data) => api.post('medical-archives/', data)
+export const updateMedicalArchive = (id, data) => api.patch(`medical-archives/${id}/`, data)
+export const deleteMedicalArchive = (id) => api.delete(`medical-archives/${id}/`)
+export const fetchArchiveTimeline = (babyId) => api.get('medical-archives/timeline/', { params: { baby_id: babyId } })
+export const fetchArchiveSummary = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('medical-archives/summary/', { params })
+}
+export const fetchExpiringArchives = (babyId, familyId, days = 30) => {
+  const params = { days }
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('medical-archives/expiring-soon/', { params })
+}
+export const markArchiveViewed = (archiveId, userId) => api.post(`medical-archives/${archiveId}/mark-viewed/`, { user_id: userId })
+export const changeArchiveStatus = (archiveId, data) => api.post(`medical-archives/${archiveId}/change-status/`, data)
+export const assignArchiveHandler = (archiveId, userId) => api.post(`medical-archives/${archiveId}/assign-handler/`, { user_id: userId })
+export const updateArchivePermission = (archiveId, data) => api.post(`medical-archives/${archiveId}/update-view-permission/`, data)
+
+export const fetchArchiveTags = (params) => api.get('archive-tags/', { params })
+export const createArchiveTag = (data) => api.post('archive-tags/', data)
+export const updateArchiveTag = (id, data) => api.patch(`archive-tags/${id}/`, data)
+export const deleteArchiveTag = (id) => api.delete(`archive-tags/${id}/`)
+
+export const fetchArchiveStats = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/medical-archives/', { params })
+}
+export const fetchArchiveByAge = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/medical-archives/by-age/', { params })
+}
+export const fetchArchiveMonthlyTrend = (babyId, familyId, months = 12) => {
+  const params = { months }
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/medical-archives/monthly-trend/', { params })
+}
+export const fetchArchiveFamilyCoverage = (babyId, familyId) => {
+  const params = {}
+  if (babyId) params.baby_id = babyId
+  if (familyId) params.family_id = familyId
+  return api.get('stats/medical-archives/family-coverage/', { params })
+}
+
 export default api

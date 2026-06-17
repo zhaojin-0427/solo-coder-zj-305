@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { fetchAppointments, updateAppointment, markAppointmentReminded, unmarkAppointmentReminded, fetchChecklistByAppointment } from '../api';
+import { fetchAppointments, updateAppointment, markAppointmentReminded, unmarkAppointmentReminded, fetchChecklistByAppointment, fetchMedicalArchives } from '../api';
 
 const TIME_SLOT_MAP = {
   morning_1: '上午 08:00-09:00',
@@ -31,6 +31,7 @@ export default function AppointmentList() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [currentUser, setCurrentUser] = useState('1');
   const [prepStatus, setPrepStatus] = useState({});
+  const [archiveCounts, setArchiveCounts] = useState({});
 
   useEffect(() => {
     loadAppointments();
@@ -67,6 +68,19 @@ export default function AppointmentList() {
       appointments.forEach(apt => {
         if (apt.status !== 'cancelled') loadPrepStatus(apt.id);
       });
+      const loadArchives = async () => {
+        try {
+          const counts = {};
+          for (const apt of appointments) {
+            const data = await fetchMedicalArchives({ appointment_id: apt.id, page_size: 1000 });
+            counts[apt.id] = Array.isArray(data) ? data.length : (data.results || []).length;
+          }
+          setArchiveCounts(counts);
+        } catch (err) {
+          // ignore
+        }
+      };
+      loadArchives();
     }
   }, [appointments.length]);
 
@@ -231,6 +245,21 @@ export default function AppointmentList() {
                       onClick={() => navigate(`/health-events/new?appointment_id=${apt.id}&baby_id=${apt.baby || apt.baby_id}`)}
                     >
                       🩺 记录健康事件
+                    </button>
+                  )}
+                  <Link
+                    to={`/medical-archives?appointment_id=${apt.id}`}
+                    className="btn btn-sm"
+                    style={{ background: '#EDEFFC', color: '#6C5CE7', border: '1px solid #6C5CE7' }}
+                  >
+                    📂 资料归档 {archiveCounts[apt.id] > 0 ? `(${archiveCounts[apt.id]})` : ''}
+                  </Link>
+                  {(apt.status === 'completed' || apt.status === 'confirmed') && (
+                    <button
+                      className="btn btn-sm btn-primary"
+                      onClick={() => navigate(`/medical-archives/new?appointment_id=${apt.id}&baby_id=${apt.baby || apt.baby_id}`)}
+                    >
+                      ➕ 上传资料
                     </button>
                   )}
                 </div>

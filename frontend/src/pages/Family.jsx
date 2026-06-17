@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchFamilies, fetchFamilyMembers, fetchAppointments, markAppointmentReminded, unmarkAppointmentReminded, fetchFamilyReminderStats, fetchChecklistSummary, fetchHealthEvents, fetchHealthEventCollaboration } from '../api'
+import { fetchFamilies, fetchFamilyMembers, fetchAppointments, markAppointmentReminded, unmarkAppointmentReminded, fetchFamilyReminderStats, fetchChecklistSummary, fetchHealthEvents, fetchHealthEventCollaboration, fetchArchiveFamilyCoverage, fetchMedicalArchives } from '../api'
 
 const RELATION_LABELS = {
   mother: '妈妈',
@@ -46,6 +46,8 @@ export default function Family() {
   const [prepSummary, setPrepSummary] = useState(null)
   const [healthEvents, setHealthEvents] = useState([])
   const [healthEventCollab, setHealthEventCollab] = useState(null)
+  const [archiveCoverage, setArchiveCoverage] = useState(null)
+  const [familyArchives, setFamilyArchives] = useState([])
 
   useEffect(() => {
     Promise.all([
@@ -71,6 +73,8 @@ export default function Family() {
       loadPrepSummary()
       loadHealthEventCollab()
       loadHealthEvents()
+      loadArchiveCoverage()
+      loadFamilyArchives()
     }
   }, [selectedFamily])
 
@@ -103,6 +107,32 @@ export default function Family() {
       }
     } catch (err) {
       console.error('Failed to load health event collaboration stats:', err)
+    }
+  }
+
+  const loadArchiveCoverage = async () => {
+    if (!selectedFamily) return
+    try {
+      const data = await fetchArchiveFamilyCoverage(null, selectedFamily)
+      if (data && data.by_family && data.by_family.length > 0) {
+        setArchiveCoverage(data.by_family[0])
+      } else if (Array.isArray(data) && data.length > 0) {
+        setArchiveCoverage(data[0])
+      } else {
+        setArchiveCoverage(null)
+      }
+    } catch (err) {
+      console.error('Failed to load archive coverage stats:', err)
+    }
+  }
+
+  const loadFamilyArchives = async () => {
+    if (!selectedFamily) return
+    try {
+      const data = await fetchMedicalArchives({ family_id: selectedFamily, page_size: 1000 })
+      setFamilyArchives(Array.isArray(data) ? data : data.results || [])
+    } catch (err) {
+      console.error('Failed to load family archives:', err)
     }
   }
 
@@ -386,6 +416,12 @@ export default function Family() {
         >
           🩺 健康事件协同 ({healthEvents.length})
         </button>
+        <button
+          className={`tab ${activeTab === 'archives' ? 'active' : ''}`}
+          onClick={() => setActiveTab('archives')}
+        >
+          📂 资料归档协同 ({familyArchives.length})
+        </button>
       </div>
 
       {activeTab === 'members' && (
@@ -644,6 +680,169 @@ export default function Family() {
                     <div className="card-actions">
                       <Link to={`/health-events/${event.id}`} className="btn btn-sm btn-primary">
                         📋 查看/跟进
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'archives' && (
+        <div className="tab-content">
+          {archiveCoverage && (
+            <div className="card" style={{ marginBottom: 20, background: 'linear-gradient(135deg, #E0F2FE 0%, #F0F9FF 100%)' }}>
+              <div className="card-title" style={{ color: '#0369A1', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>📂</span>
+                家庭资料归档覆盖率统计
+              </div>
+              <div className="card-body">
+                <div className="grid-4" style={{ marginBottom: 16 }}>
+                  <div className="metric-card" style={{ background: '#DFE6E9' }}>
+                    <div className="metric-value">{archiveCoverage.total_members || 0}</div>
+                    <div className="metric-label">家庭成员</div>
+                  </div>
+                  <div className="metric-card">
+                    <div className="metric-value">{archiveCoverage.total_archives || 0}</div>
+                    <div className="metric-label">归档资料总数</div>
+                  </div>
+                  <div className="metric-card green">
+                    <div className="metric-value">{archiveCoverage.viewed_members_count || 0}</div>
+                    <div className="metric-label">已查看成员</div>
+                  </div>
+                  <div className="metric-card" style={{ background: '#EDEFFC' }}>
+                    <div className="metric-value" style={{ color: '#6C5CE7' }}>
+                      {archiveCoverage.view_coverage_percent || 0}%
+                    </div>
+                    <div className="metric-label">查看覆盖率</div>
+                  </div>
+                </div>
+                {archiveCoverage.members && archiveCoverage.members.length > 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>👥 成员查看详情</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {archiveCoverage.members.map(member => (
+                        <div key={member.member_id} className="family-member-reminder-item">
+                          <div className="family-member-reminder-info">
+                            <div className="family-member-reminder-avatar">
+                              {member.username?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                            <div>
+                              <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                {member.username || '未知用户'}
+                                <span className={`reminder-status-badge ${member.has_viewed ? 'active' : 'inactive'}`}>
+                                  {member.has_viewed ? '✓ 已查看资料' : '○ 尚未查看'}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 12, color: '#636E72', marginTop: 2 }}>
+                                {member.role_label}
+                                {member.relation_label && ` · ${member.relation_label}`}
+                                {member.viewed_count > 0 && ` · 查看 ${member.viewed_count} 次`}
+                                {member.created_count > 0 && ` · 上传 ${member.created_count} 份`}
+                                {member.handled_count > 0 && ` · 处理 ${member.handled_count} 份`}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 14, color: '#636E72' }}>家庭全部就诊资料</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Link to="/medical-archives" className="btn btn-sm btn-secondary">
+                📂 查看全部
+              </Link>
+              <Link to="/medical-archives/new" className="btn btn-sm btn-primary">
+                ➕ 上传资料
+              </Link>
+            </div>
+          </div>
+
+          {familyArchives.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-icon">📂</div>
+              <p>暂无就诊资料归档</p>
+              <Link to="/medical-archives/new" className="btn btn-primary">
+                上传第一份资料
+              </Link>
+            </div>
+          ) : (
+            <div className="card-list">
+              {familyArchives.map(archive => {
+                const typeIcons = {
+                  vaccine_certificate: '💉', checkup_report: '🩺', lab_result: '🧪',
+                  doctor_advice: '💬', revisit_note: '📋', photo: '📷',
+                  preparation_doc: '🏥', reaction_record: '💊', other: '📄',
+                }
+                const statusColors = {
+                  draft: '#636E72', pending_review: '#FDCB6E', approved: '#00B894',
+                  needs_action: '#E17055', expired: '#6C5CE7', archived_obsolete: '#B2BEC3',
+                }
+                const statusBgs = {
+                  draft: '#DFE6E9', pending_review: '#FEF3C7', approved: '#D1FAE5',
+                  needs_action: '#FEE2E2', expired: '#EDEFFC', archived_obsolete: '#F1F2F6',
+                }
+                return (
+                  <div key={archive.id} className="card" style={{ borderLeft: `4px solid ${statusColors[archive.status] || '#6C5CE7'}` }}>
+                    <div className="card-header">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 20 }}>{typeIcons[archive.archive_type] || '📄'}</span>
+                        <div>
+                          <div className="card-title">
+                            {archive.baby_name} · {archive.title}
+                          </div>
+                          <div style={{ fontSize: 12, color: '#636E72' }}>
+                            {archive.event_date}
+                            {archive.age_months_at_event !== null && archive.age_months_at_event !== undefined && (
+                              <span style={{ marginLeft: 8 }}>({archive.age_months_at_event}月龄)</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <span style={{
+                          padding: '2px 10px',
+                          borderRadius: 10,
+                          fontSize: 12,
+                          background: statusBgs[archive.status] || '#DFE6E9',
+                          color: statusColors[archive.status] || '#636E72',
+                          fontWeight: 600,
+                        }}>
+                          {archive.status_label}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="card-body">
+                      <div className="card-row">
+                        <span className="card-label">类型</span>
+                        <span className="card-value">{archive.archive_type_label}</span>
+                      </div>
+                      <div className="card-row">
+                        <span className="card-label">来源</span>
+                        <span className="card-value">{archive.source_type_label}</span>
+                      </div>
+                      {archive.description && (
+                        <div className="card-row">
+                          <span className="card-label">描述</span>
+                          <span className="card-value">{archive.description}</span>
+                        </div>
+                      )}
+                      <div className="card-row">
+                        <span className="card-label">查看</span>
+                        <span className="card-value">👁️ {archive.viewers_count || 0} 人已查看</span>
+                      </div>
+                    </div>
+                    <div className="card-actions">
+                      <Link to={`/medical-archives/${archive.id}`} className="btn btn-sm btn-primary">
+                        👁️ 查看详情
                       </Link>
                     </div>
                   </div>

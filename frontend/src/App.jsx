@@ -14,6 +14,9 @@ import PreparationCenter from './pages/PreparationCenter'
 import HealthEventList from './pages/HealthEventList'
 import HealthEventForm from './pages/HealthEventForm'
 import HealthEventDetail from './pages/HealthEventDetail'
+import MedicalArchiveList from './pages/MedicalArchiveList'
+import MedicalArchiveDetail from './pages/MedicalArchiveDetail'
+import MedicalArchiveForm from './pages/MedicalArchiveForm'
 
 const navItems = [
   { path: '/babies', label: '宝宝档案', icon: '👶' },
@@ -21,6 +24,7 @@ const navItems = [
   { path: '/appointments', label: '预约记录', icon: '📋' },
   { path: '/reactions', label: '反应观察', icon: '💊' },
   { path: '/health-events', label: '健康事件', icon: '🩺' },
+  { path: '/medical-archives', label: '资料归档', icon: '📂' },
   { path: '/family', label: '家庭共享', icon: '👨‍👩‍👧‍👦' },
   { path: '/preparation', label: '到院准备', icon: '🏥' },
   { path: '/statistics', label: '数据统计', icon: '📊' },
@@ -66,6 +70,10 @@ export default function App() {
           <Route path="/health-events" element={<HealthEventList />} />
           <Route path="/health-events/new" element={<HealthEventForm />} />
           <Route path="/health-events/:id" element={<HealthEventDetail />} />
+          <Route path="/medical-archives" element={<MedicalArchiveList />} />
+          <Route path="/medical-archives/new" element={<MedicalArchiveForm />} />
+          <Route path="/medical-archives/:id" element={<MedicalArchiveDetail />} />
+          <Route path="/medical-archives/:id/edit" element={<MedicalArchiveForm />} />
           <Route path="/family" element={<Family />} />
           <Route path="/preparation" element={<PreparationCenter />} />
           <Route path="/statistics" element={<Statistics />} />
